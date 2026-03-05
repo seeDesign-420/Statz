@@ -7,13 +7,17 @@ local.properties
 
 # Log/OS Files
 *.log
+.DS_Store
 
 # Android Studio generated files and folders
 captures/
 .externalNativeBuild/
 .cxx/
+.caches/
 *.aab
 *.apk
+*.ap_
+*.dex
 output-metadata.json
 
 # IntelliJ
@@ -32,3 +36,21 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Android subproject
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+
+# Node (web)
+web/node_modules/
+web/.next/
+web/out/
+
+# Misc
+*.tmp
+*.swp
+.env
+.env.*
