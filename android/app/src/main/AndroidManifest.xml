@@ -30,6 +30,11 @@
             android:name=".notification.QueryAlarmReceiver"
             android:exported="false" />
 
+        <!-- Task due-date alarm receiver -->
+        <receiver
+            android:name=".notification.TaskAlarmReceiver"
+            android:exported="false" />
+
         <!-- Notification action button handler -->
         <receiver
             android:name=".notification.NotificationActionReceiver"

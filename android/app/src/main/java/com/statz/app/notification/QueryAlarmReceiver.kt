@@ -6,11 +6,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import com.statz.app.R
 import com.statz.app.MainActivity
-import com.statz.app.data.local.AppDatabase
+import com.statz.app.di.DatabaseEntryPoint
 import com.statz.app.domain.model.QueryStatus
 import com.statz.app.domain.model.QueryUrgency
 import com.statz.app.domain.model.WorkHoursUtils
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,11 +37,15 @@ class QueryAlarmReceiver : BroadcastReceiver() {
         }
 
         val pendingResult = goAsync()
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            DatabaseEntryPoint::class.java
+        )
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val db = AppDatabase.getInstance(context)
-                val query = db.queryDao().getQueryById(queryId)
+                val queryDao = entryPoint.queryDao()
+                val query = queryDao.getQueryById(queryId)
 
                 // Only notify if query is still open/follow-up/escalated
                 if (query == null || query.status == QueryStatus.CLOSED) {
@@ -57,15 +63,12 @@ class QueryAlarmReceiver : BroadcastReceiver() {
                     urgency = query.urgency,
                     customHours = query.customFollowUpHours
                 )
-                db.queryDao().updateQuery(
+                queryDao.updateQuery(
                     query.copy(nextFollowUpAt = nextFollowUp, updatedAt = now)
                 )
 
                 // Reschedule alarm for the next follow-up
-                val scheduler = NotificationScheduler(
-                    context,
-                    context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-                )
+                val scheduler = entryPoint.notificationScheduler()
                 scheduler.scheduleQueryAlarm(queryId, nextFollowUp, query.urgency)
 
             } finally {
@@ -139,7 +142,7 @@ class QueryAlarmReceiver : BroadcastReceiver() {
         val displayTicket = ticketNumber.ifEmpty { "#${queryId.take(8)}" }
 
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("$urgencyLabel — Follow-up Due")
             .setContentText("$displayTicket · $customerName")
             .setStyle(

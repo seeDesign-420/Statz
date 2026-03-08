@@ -23,7 +23,7 @@ import javax.inject.Singleton
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "statz_settings")
 
 data class AppSettings(
-    val displayName: String = "Thomas",
+    val displayName: String = "",
     val workStartHour: Int = 8,
     val workStartMinute: Int = 0,
     val workEndHour: Int = 17,
@@ -54,7 +54,7 @@ class SettingsDataStore @Inject constructor(
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
-            displayName = prefs[Keys.DISPLAY_NAME] ?: "Thomas",
+            displayName = prefs[Keys.DISPLAY_NAME] ?: "",
             workStartHour = prefs[Keys.WORK_START_HOUR] ?: 8,
             workStartMinute = prefs[Keys.WORK_START_MINUTE] ?: 0,
             workEndHour = prefs[Keys.WORK_END_HOUR] ?: 17,

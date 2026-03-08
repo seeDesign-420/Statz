@@ -161,3 +161,53 @@ fun RevenueSplitDonut(
         }
     }
 }
+/**
+ * Donut chart showing the split between two unit categories (e.g., New Lines vs Upgrades).
+ */
+@Composable
+fun UnitSplitDonut(
+    newLines: Long,
+    upgrades: Long,
+    modifier: Modifier = Modifier
+) {
+    if (newLines == 0L && upgrades == 0L) return
+
+    val colors = listOf(
+        Primary,
+        Color(0xFFD9F522), // Neon Lime
+    )
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        PieChart(
+            modifier = Modifier.size(120.dp),
+            data = listOf(
+                Pie(label = "New Lines", data = newLines.toDouble(), color = colors[0], selectedColor = colors[0]),
+                Pie(label = "Upgrades", data = upgrades.toDouble(), color = colors[1], selectedColor = colors[1])
+            ),
+            style = Pie.Style.Stroke(width = 18.dp)
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(10.dp).background(colors[0], RoundedCornerShape(2.dp)))
+                Column {
+                    Text("NEW LINES", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f), letterSpacing = 1.sp)
+                    Text("$newLines", fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(10.dp).background(colors[1], RoundedCornerShape(2.dp)))
+                Column {
+                    Text("UPGRADES", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f), letterSpacing = 1.sp)
+                    Text("$upgrades", fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+            }
+        }
+    }
+}

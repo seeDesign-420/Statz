@@ -134,7 +134,7 @@ fun TodoListScreen(
                 item {
                     TaskSectionHeader("Overdue (${overdue.size})", Error)
                 }
-                items(overdue, key = { it.id }) { task ->
+                items(overdue, key = { "overdue_${it.id}" }) { task ->
                     TaskCard(
                         task = task,
                         isOverdue = true,
@@ -149,7 +149,7 @@ fun TodoListScreen(
                 item {
                     TaskSectionHeader("Today (${today.size})", Primary)
                 }
-                items(today, key = { it.id }) { task ->
+                items(today, key = { "today_${it.id}" }) { task ->
                     TaskCard(
                         task = task,
                         isOverdue = false,
@@ -164,7 +164,7 @@ fun TodoListScreen(
                 item {
                     TaskSectionHeader("Upcoming (${upcoming.size})", MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                items(upcoming, key = { it.id }) { task ->
+                items(upcoming, key = { "upcoming_${it.id}" }) { task ->
                     TaskCard(
                         task = task,
                         isOverdue = false,
@@ -180,7 +180,7 @@ fun TodoListScreen(
                 item {
                     TaskSectionHeader("Unscheduled (${unscheduled.size})", MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                items(unscheduled, key = { it.id }) { task ->
+                items(unscheduled, key = { "unscheduled_${it.id}" }) { task ->
                     TaskCard(
                         task = task,
                         isOverdue = false,
@@ -225,7 +225,7 @@ fun TodoListScreen(
                     }
                 }
                 if (completedExpanded) {
-                    items(completed.take(10), key = { it.id }) { task ->
+                    items(completed.take(10), key = { "completed_${it.id}" }) { task ->
                         TaskCard(
                             task = task,
                             isOverdue = false,
@@ -265,87 +265,139 @@ private fun TaskCard(
     onClick: () -> Unit,
     dimmed: Boolean = false
 ) {
-    val alpha = if (dimmed) 0.7f else 1f
     val sdf = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
-    val tintColor = if (isOverdue) Error else if (task.urgency == QueryUrgency.HIGH || task.urgency == QueryUrgency.CRITICAL) UrgencyHigh else null
+    val tintColor = when {
+        isOverdue -> Error
+        task.urgency == QueryUrgency.CRITICAL -> com.statz.app.ui.theme.UrgencyCritical
+        task.urgency == QueryUrgency.HIGH -> com.statz.app.ui.theme.UrgencyHigh
+        else -> null
+    }
+
+    val glowColor = when {
+        isOverdue -> com.statz.app.ui.theme.UrgencyCriticalGlow
+        task.urgency == QueryUrgency.CRITICAL -> com.statz.app.ui.theme.UrgencyCriticalGlow
+        task.urgency == QueryUrgency.HIGH -> com.statz.app.ui.theme.UrgencyHighGlow
+        else -> null
+    }
+
+    val glowRadius = when {
+        isOverdue -> 6.dp
+        task.urgency == QueryUrgency.CRITICAL -> 8.dp
+        task.urgency == QueryUrgency.HIGH -> 6.dp
+        else -> 12.dp
+    }
+
+    // Status label & color for the right-aligned pill
+    val (statusLabel, statusColor) = when {
+        isOverdue -> "OVERDUE" to Error
+        task.urgency == QueryUrgency.CRITICAL -> "CRITICAL" to com.statz.app.ui.theme.UrgencyCritical
+        task.urgency == QueryUrgency.HIGH -> "HIGH" to com.statz.app.ui.theme.UrgencyHigh
+        task.isDone -> "DONE" to com.statz.app.ui.theme.StatusClosed
+        task.dueAt != null -> "DUE" to MaterialTheme.colorScheme.primary
+        else -> null to null
+    }
 
     com.statz.app.ui.components.StatzGlassCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        tintColor = tintColor
+        tintColor = tintColor,
+        glowColor = glowColor,
+        glowRadius = glowRadius
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = task.isDone,
-                onCheckedChange = { onToggleDone() },
-                colors = CheckboxDefaults.colors(
-                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    checkedColor = MaterialTheme.colorScheme.primary
-                )
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Top row: Title + Status Pill + Chevron
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = task.title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
                     color = if (task.isDone) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
                 )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (task.dueAt != null) {
+                    if (statusLabel != null && statusColor != null) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .background(statusColor.copy(alpha = 0.2f), RoundedCornerShape(50))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.CalendarMonth,
-                                null,
-                                modifier = Modifier.size(12.dp),
-                                tint = if (isOverdue) Error else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                             Text(
-                                text = if (isOverdue) "Overdue" else sdf.format(Date(task.dueAt)),
+                                text = statusLabel,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = if (isOverdue) Error else MaterialTheme.colorScheme.onSurfaceVariant
+                                fontWeight = FontWeight.Bold,
+                                color = statusColor
                             )
                         }
                     }
-                    if (task.urgency == QueryUrgency.HIGH || task.urgency == QueryUrgency.CRITICAL) {
-                        val urgencyColor = if (task.urgency == QueryUrgency.CRITICAL) UrgencyCritical else UrgencyHigh
-                        val urgencyLabel = if (task.urgency == QueryUrgency.CRITICAL) "Critical" else "High"
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Flag, null, modifier = Modifier.size(12.dp), tint = urgencyColor)
-                            Text(urgencyLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = urgencyColor)
-                        }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "View Details",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Bottom row: Checkbox + metadata
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = task.isDone,
+                    onCheckedChange = { onToggleDone() },
+                    colors = CheckboxDefaults.colors(
+                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        checkedColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+                if (task.dueAt != null) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarMonth,
+                            null,
+                            modifier = Modifier.size(12.dp),
+                            tint = if (isOverdue) Error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (isOverdue) "Overdue" else sdf.format(Date(task.dueAt)),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = if (isOverdue) Error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (task.urgency == QueryUrgency.HIGH || task.urgency == QueryUrgency.CRITICAL) {
+                    val urgencyColor = if (task.urgency == QueryUrgency.CRITICAL) com.statz.app.ui.theme.UrgencyCritical else com.statz.app.ui.theme.UrgencyHigh
+                    val urgencyLabel = if (task.urgency == QueryUrgency.CRITICAL) "Critical" else "High"
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Flag, null, modifier = Modifier.size(12.dp), tint = urgencyColor)
+                        Text(urgencyLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = urgencyColor)
                     }
                 }
             }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = "View Details",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }

@@ -9,6 +9,9 @@ import com.statz.app.data.repository.MonthDashboard
 import com.statz.app.data.repository.SalesRepository
 import com.statz.app.data.settings.SettingsDataStore
 import com.statz.app.domain.export.ClipboardExporter
+import androidx.compose.runtime.Immutable
+import com.statz.app.domain.model.AppConfig
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +28,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
+@Immutable
 data class SalesUiState(
     val monthKey: String = "",
     val monthDisplay: String = "",
@@ -32,6 +36,7 @@ data class SalesUiState(
     val isLoading: Boolean = true
 )
 
+@Immutable
 data class DailyEntryUiState(
     val dateKey: String = "",
     val dateDisplay: String = "",
@@ -42,6 +47,7 @@ data class DailyEntryUiState(
     val savedSuccessfully: Boolean = false
 )
 
+@Immutable
 data class TargetsUiState(
     val monthKey: String = "",
     val monthDisplay: String = "",
@@ -54,10 +60,15 @@ data class TargetsUiState(
 @HiltViewModel
 class SalesViewModel @Inject constructor(
     private val salesRepository: SalesRepository,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val timezone = ZoneId.of("Africa/Johannesburg")
+    private companion object {
+        const val KEY_MONTH = "current_month"
+    }
+
+    private val timezone = AppConfig.TIMEZONE
     private val monthFormatter = DateTimeFormatter.ofPattern("MMMM yyyy")
 
     private val _salesState = MutableStateFlow(SalesUiState())

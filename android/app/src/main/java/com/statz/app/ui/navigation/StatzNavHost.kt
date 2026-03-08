@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -114,6 +115,10 @@ fun StatzNavHost() {
     }
 
     val dialogConfigState = remember { mutableStateOf<com.statz.app.ui.components.DialogConfig?>(null) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+
+    // Second backdrop: captures sub-screen content so dialog blurs the detail screen, not the list
+    val subScreenBackdrop = rememberLayerBackdrop()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Sibling 1: Pager content — captured by navBackdrop
@@ -149,103 +154,101 @@ fun StatzNavHost() {
         }
 
         // Sibling 2: NavHost for sub-screen push navigation
-        // Sits OUTSIDE layerBackdrop so sub-screens can use navBackdrop for live blur (same as dialog).
-        CompositionLocalProvider(
-            com.statz.app.ui.components.LocalDialogHost provides { config ->
-                dialogConfigState.value = config
-            }
+        // Wrapped in subScreenBackdrop so the dialog can blur the actual sub-screen content.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(subScreenBackdrop)
         ) {
-            NavHost(
-                navController = navController,
-                startDestination = Screen.SalesDashboard.route,
-                modifier = Modifier.fillMaxSize(),
-                enterTransition = {
-                    slideIntoContainer(
-                        AnimatedContentTransitionScope.SlideDirection.Start,
-                        spring(
-                            dampingRatio = 0.85f,
-                            stiffness = 400f
-                        )
-                    )
+            CompositionLocalProvider(
+                com.statz.app.ui.components.LocalDialogHost provides { config ->
+                    dialogConfigState.value = config
                 },
-                exitTransition = {
-                    slideOutOfContainer(
-                        AnimatedContentTransitionScope.SlideDirection.Start,
-                        spring(
-                            dampingRatio = 0.85f,
-                            stiffness = 400f
-                        )
-                    )
-                },
-                popEnterTransition = {
-                    slideIntoContainer(
-                        AnimatedContentTransitionScope.SlideDirection.End,
-                        spring(
-                            dampingRatio = 0.85f,
-                            stiffness = 400f
-                        )
-                    )
-                },
-                popExitTransition = {
-                    slideOutOfContainer(
-                        AnimatedContentTransitionScope.SlideDirection.End,
-                        spring(
-                            dampingRatio = 0.85f,
-                            stiffness = 400f
-                        )
-                    )
+                com.statz.app.ui.components.LocalNavBackdrop provides navBackdrop,
+                com.statz.app.ui.components.LocalToastHost provides { message ->
+                    toastMessage = message
                 }
             ) {
-                // Tab roots: empty — rendered by HorizontalPager in sibling 1
-                composable(Screen.SalesDashboard.route) { }
-                composable(Screen.QueriesList.route) { }
-                composable(Screen.TodoList.route) { }
-                composable(Screen.Settings.route) { }
+                NavHost(
+                    navController = navController,
+                    startDestination = Screen.SalesDashboard.route,
+                    modifier = Modifier.fillMaxSize(),
+                    enterTransition = {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Start,
+                            StatzAnimation.standardTween()
+                        )
+                    },
+                    exitTransition = {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Start,
+                            StatzAnimation.standardTween()
+                        )
+                    },
+                    popEnterTransition = {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.End,
+                            StatzAnimation.standardTween()
+                        )
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.End,
+                            StatzAnimation.standardTween()
+                        )
+                    }
+                ) {
+                    // Tab roots: empty — rendered by HorizontalPager in sibling 1
+                    composable(Screen.SalesDashboard.route) { }
+                    composable(Screen.QueriesList.route) { }
+                    composable(Screen.TodoList.route) { }
+                    composable(Screen.Settings.route) { }
 
-                // ── Sales sub-screens ────────────────────────
-                composable(
-                    Screen.DailyEntry.route,
-                    arguments = listOf(navArgument("dateKey") { type = NavType.StringType })
-                ) { backStackEntry ->
-                    com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
-                        val dateKey = backStackEntry.arguments?.getString("dateKey") ?: ""
-                        DailyEntryScreen(dateKey = dateKey, navController = navController)
+                    // ── Sales sub-screens ────────────────────────
+                    composable(
+                        Screen.DailyEntry.route,
+                        arguments = listOf(navArgument("dateKey") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
+                            val dateKey = backStackEntry.arguments?.getString("dateKey") ?: ""
+                            DailyEntryScreen(dateKey = dateKey, navController = navController)
+                        }
                     }
-                }
-                composable(
-                    Screen.EditTargets.route,
-                    arguments = listOf(navArgument("monthKey") { type = NavType.StringType })
-                ) { backStackEntry ->
-                    com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
-                        val monthKey = backStackEntry.arguments?.getString("monthKey") ?: ""
-                        EditTargetsScreen(monthKey = monthKey, navController = navController)
+                    composable(
+                        Screen.EditTargets.route,
+                        arguments = listOf(navArgument("monthKey") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
+                            val monthKey = backStackEntry.arguments?.getString("monthKey") ?: ""
+                            EditTargetsScreen(monthKey = monthKey, navController = navController)
+                        }
                     }
-                }
 
-                // ── Query sub-screens ────────────────────────
-                composable(Screen.NewQuery.route) {
-                    com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
-                        NewQueryScreen(navController = navController)
+                    // ── Query sub-screens ────────────────────────
+                    composable(Screen.NewQuery.route) {
+                        com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
+                            NewQueryScreen(navController = navController)
+                        }
                     }
-                }
-                composable(
-                    Screen.QueryDetail.route,
-                    arguments = listOf(navArgument("queryId") { type = NavType.StringType })
-                ) { backStackEntry ->
-                    com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
-                        val queryId = backStackEntry.arguments?.getString("queryId") ?: ""
-                        QueryDetailScreen(queryId = queryId, navController = navController)
+                    composable(
+                        Screen.QueryDetail.route,
+                        arguments = listOf(navArgument("queryId") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
+                            val queryId = backStackEntry.arguments?.getString("queryId") ?: ""
+                            QueryDetailScreen(queryId = queryId, navController = navController)
+                        }
                     }
-                }
 
-                // ── Task sub-screens ─────────────────────────
-                composable(
-                    Screen.TaskDetail.route,
-                    arguments = listOf(navArgument("taskId") { type = NavType.StringType })
-                ) { backStackEntry ->
-                    com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
-                        val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
-                        TaskDetailScreen(taskId = taskId, navController = navController)
+                    // ── Task sub-screens ─────────────────────────
+                    composable(
+                        Screen.TaskDetail.route,
+                        arguments = listOf(navArgument("taskId") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        com.statz.app.ui.components.GlassScreenBackground(backdrop = navBackdrop) {
+                            val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
+                            TaskDetailScreen(taskId = taskId, navController = navController)
+                        }
                     }
                 }
             }
@@ -274,17 +277,24 @@ fun StatzNavHost() {
             )
         }
 
-        // Sibling 3: Glass dialog overlay — uses navBackdrop to blur live content
+        // Sibling 3: Glass dialog overlay — uses subScreenBackdrop to blur the actual sub-screen
         dialogConfigState.value?.let { config ->
             com.statz.app.ui.components.StatzGlassDialogOverlay(
                 config = config,
-                backdrop = navBackdrop,
+                backdrop = subScreenBackdrop,
                 onDismiss = {
                     config.onDismiss()
                     dialogConfigState.value = null
                 }
             )
         }
+
+        // Sibling 4: Glass toast overlay — uses navBackdrop for frosted glass
+        com.statz.app.ui.components.StatzGlassToastHost(
+            backdrop = navBackdrop,
+            message = toastMessage,
+            onDismiss = { toastMessage = null }
+        )
     }
 }
 

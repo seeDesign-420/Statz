@@ -106,6 +106,9 @@ interface QueryDao {
     @Query("DELETE FROM query_items WHERE id = :id")
     suspend fun deleteQuery(id: String)
 
+    @Query("UPDATE query_items SET ticket_number = :ticketNumber, updated_at = :updatedAt WHERE id = :id")
+    suspend fun updateTicketNumber(id: String, ticketNumber: String, updatedAt: Long)
+
     // ── Log Entries ─────────────────────────────────────────────
 
     @Insert

@@ -16,6 +16,8 @@ coroutines = "1.9.0"
 serialization = "1.7.3"
 material3 = "1.3.1"
 compose-charts = "0.1.9"
+turbine = "1.1.0"
+compose-datepicker = "2.2.1"
 
 [libraries]
 # Core
@@ -69,7 +71,9 @@ androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-man
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 compose-charts = { group = "io.github.ehsannarmani", name = "compose-charts", version.ref = "compose-charts" }
+compose-datepicker = { group = "com.github.vsnappy1", name = "ComposeDatePicker", version.ref = "compose-datepicker" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -10,7 +10,7 @@ val Error = Color(0xFFEF4444)
 val Success = Color(0xFF22C55E)
 
 // ── Dark Theme Surfaces ─────────────────────────────────────────
-val DarkBackground = Color(0xFF050505) // OLED Black
+val DarkBackground = Color(0xFF000000) // Pure Black
 val DarkSurface = Color(0x0DFFFFFF) // 5% White (Frosted Glass base)
 val DarkSurfaceVariant = Color(0xFF171717) // Solid dark elevated
 val DarkSurfaceContainer = Color(0xFF121212)
@@ -18,6 +18,10 @@ val DarkOnSurface = Color(0xFFFFFFFF)
 val DarkOnSurfaceVariant = Color(0xFFA3A3A3)
 val DarkOutline = Color(0xFF262626)
 val DarkOutlineVariant = Color(0xFF1A1A1A)
+
+// ── Glass Design Tokens ────────────────────────────────────────
+val GlassTint = Color(0xFF000000).copy(alpha = 0.45f) // Slightly deeper black alpha for better contrast
+val GlassTintDark = Color(0xFF000000).copy(alpha = 0.75f) // Neutral deep black tint for Dialogs/Overlays
 
 // ── Light Theme Surfaces ────────────────────────────────────────
 val LightBackground = Color(0xFFF8FAFC)

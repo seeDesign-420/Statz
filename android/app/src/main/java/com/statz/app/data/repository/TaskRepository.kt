@@ -2,8 +2,11 @@ package com.statz.app.data.repository
 
 import com.statz.app.data.local.dao.TaskDao
 import com.statz.app.data.local.model.TaskItemEntity
+import com.statz.app.domain.model.AppConfig
 import com.statz.app.domain.model.QueryUrgency
+import com.statz.app.notification.NotificationScheduler
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -24,10 +27,11 @@ data class TaskSections(
 
 @Singleton
 class TaskRepository @Inject constructor(
-    private val taskDao: TaskDao
+    private val taskDao: TaskDao,
+    private val notificationScheduler: NotificationScheduler
 ) {
 
-    private val timezone = ZoneId.of("Africa/Johannesburg")
+    private val timezone = AppConfig.TIMEZONE
 
     // ── CRUD ────────────────────────────────────────────────────
 
@@ -56,11 +60,21 @@ class TaskRepository @Inject constructor(
                 updatedAt = now
             )
         )
+        // Schedule alarm if reminder is enabled and due date is set
+        if (reminderEnabled && dueAt != null) {
+            notificationScheduler.scheduleTaskAlarm(id, dueAt)
+        }
         return id
     }
 
     suspend fun updateTask(task: TaskItemEntity) {
         taskDao.updateTask(task.copy(updatedAt = System.currentTimeMillis()))
+        // Manage alarm based on reminder state
+        if (task.reminderEnabled && task.dueAt != null && !task.isDone) {
+            notificationScheduler.scheduleTaskAlarm(task.id, task.dueAt)
+        } else {
+            notificationScheduler.cancelTaskAlarm(task.id)
+        }
     }
 
     suspend fun toggleDone(taskId: String) {
@@ -79,37 +93,37 @@ class TaskRepository @Inject constructor(
     // ── Observe ─────────────────────────────────────────────────
 
     fun observeTaskById(id: String): Flow<TaskItemEntity?> =
-        taskDao.observeTaskById(id)
+        taskDao.observeTaskById(id).distinctUntilChanged()
 
     fun observeActiveTasks(): Flow<List<TaskItemEntity>> =
-        taskDao.observeActiveTasks()
+        taskDao.observeActiveTasks().distinctUntilChanged()
 
     fun observeCompletedTasks(): Flow<List<TaskItemEntity>> =
-        taskDao.observeCompletedTasks()
+        taskDao.observeCompletedTasks().distinctUntilChanged()
 
     /**
      * Section-based queries for Today View.
      */
     fun observeOverdueTasks(): Flow<List<TaskItemEntity>> {
         val now = System.currentTimeMillis()
-        return taskDao.observeOverdueTasks(now)
+        return taskDao.observeOverdueTasks(now).distinctUntilChanged()
     }
 
     fun observeTodayTasks(): Flow<List<TaskItemEntity>> {
         val today = LocalDate.now(timezone)
         val startOfDay = ZonedDateTime.of(today, LocalTime.MIN, timezone).toInstant().toEpochMilli()
         val endOfDay = ZonedDateTime.of(today.plusDays(1), LocalTime.MIN, timezone).toInstant().toEpochMilli()
-        return taskDao.observeTodayTasks(startOfDay, endOfDay)
+        return taskDao.observeTodayTasks(startOfDay, endOfDay).distinctUntilChanged()
     }
 
     fun observeUpcomingTasks(): Flow<List<TaskItemEntity>> {
         val today = LocalDate.now(timezone)
         val endOfDay = ZonedDateTime.of(today.plusDays(1), LocalTime.MIN, timezone).toInstant().toEpochMilli()
-        return taskDao.observeUpcomingTasks(endOfDay)
+        return taskDao.observeUpcomingTasks(endOfDay).distinctUntilChanged()
     }
 
     fun observeUnscheduledTasks(): Flow<List<TaskItemEntity>> =
-        taskDao.observeUnscheduledTasks()
+        taskDao.observeUnscheduledTasks().distinctUntilChanged()
 
     // ── Reminder Support ────────────────────────────────────────
 

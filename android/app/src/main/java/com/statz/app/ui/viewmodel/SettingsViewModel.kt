@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.statz.app.data.backup.BackupManager
 import com.statz.app.data.settings.AppSettings
 import com.statz.app.data.settings.SettingsDataStore
+import androidx.compose.runtime.Immutable
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@Immutable
 data class BackupUiState(
     val isExporting: Boolean = false,
     val isImporting: Boolean = false,
@@ -24,7 +27,8 @@ data class BackupUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = settingsDataStore.settings

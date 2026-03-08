@@ -56,6 +56,20 @@ interface SalesDao {
     @Upsert
     suspend fun upsertDailyValues(values: List<DailySalesValueEntity>)
 
+    /**
+     * Atomically upsert a daily record and its values together.
+     */
+    @Transaction
+    suspend fun upsertDailyRecordWithValues(
+        record: DailySalesRecordEntity,
+        values: List<DailySalesValueEntity>
+    ) {
+        upsertDailyRecord(record)
+        if (values.isNotEmpty()) {
+            upsertDailyValues(values)
+        }
+    }
+
     @Query("SELECT * FROM daily_sales_values WHERE date_key = :dateKey")
     suspend fun getDailyValues(dateKey: String): List<DailySalesValueEntity>
 

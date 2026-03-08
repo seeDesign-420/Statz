@@ -3,7 +3,11 @@ package com.statz.app.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import com.kyant.backdrop.drawBackdrop
@@ -19,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -83,12 +88,14 @@ fun DailyEntryScreen(
     val state by viewModel.dailyEntryState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    val toastHost = com.statz.app.ui.components.LocalToastHost.current
+
     // Observe clipboard export events
     LaunchedEffect(Unit) {
         viewModel.clipboardText.collect { text ->
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("Statz Daily Report", text))
-            Toast.makeText(context, "Stats copied to clipboard", Toast.LENGTH_SHORT).show()
+            toastHost("Stats copied to clipboard")
         }
     }
 
@@ -240,9 +247,6 @@ private fun SectionHeader(text: String) {
     )
 }
 
-/**
- * Full-width stepper row: Label on left, [− value +] in a single dark pill on right.
- */
 @Composable
 private fun StepperRow(
     label: String,
@@ -263,7 +267,6 @@ private fun StepperRow(
             modifier = Modifier.weight(1f)
         )
 
-        // Single pill containing [−] [value] [+] with Liquid Glass
         val backdrop = com.statz.app.ui.components.LocalBackdrop.current
         val primaryColor = MaterialTheme.colorScheme.primary
         val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
@@ -291,11 +294,40 @@ private fun StepperRow(
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Minus button
+            // Editable state — hoisted so step buttons can commit-then-step
+            var isEditing by remember { mutableStateOf(false) }
+            var hasFocusedOnce by remember { mutableStateOf(false) }
+            val focusRequester = remember { FocusRequester() }
+            val keyboardController = LocalSoftwareKeyboardController.current
+            // Shared ref to the current text field value so step buttons can read it
+            var currentEditText by remember { mutableStateOf(value.toString()) }
+
+            val commitAndExit = {
+                val parsed = currentEditText.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+                onValueChange(parsed)
+                isEditing = false
+                hasFocusedOnce = false
+                keyboardController?.hide()
+            }
+
+            // Commit current text, apply step offset, exit edit mode
+            val commitThenStep = { offset: Long ->
+                if (isEditing) {
+                    val parsed = currentEditText.toLongOrNull()?.coerceAtLeast(0L) ?: value
+                    onValueChange((parsed + offset).coerceAtLeast(0L))
+                    isEditing = false
+                    hasFocusedOnce = false
+                    keyboardController?.hide()
+                } else {
+                    onValueChange((value + offset).coerceAtLeast(0L))
+                }
+            }
+
+            // Minus button — always enabled, commits current edit first if active
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .clickable { onValueChange((value - 1).coerceAtLeast(0)) },
+                    .clickable { commitThenStep(-1L) },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -306,74 +338,91 @@ private fun StepperRow(
                 )
             }
 
-            // Tappable value display / inline text input
-            var isEditing by remember { mutableStateOf(false) }
-            val focusRequester = remember { FocusRequester() }
-            val keyboardController = LocalSoftwareKeyboardController.current
-
-            val commitEdit = { text: String ->
-                val parsed = text.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
-                onValueChange(parsed)
-                isEditing = false
-            }
+            // Animate width expansion when entering edit mode
+            val targetWidth by animateDpAsState(
+                targetValue = if (isEditing) 100.dp else 64.dp,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
+                label = "editWidthExpand"
+            )
 
             Box(
                 modifier = Modifier
                     .height(44.dp)
-                    .widthIn(min = 48.dp)
+                    .width(targetWidth)
                     .clickable(enabled = !isEditing) { isEditing = true },
                 contentAlignment = Alignment.Center
             ) {
-                if (isEditing) {
-                    var tfv by remember(value) {
-                        val s = value.toString()
-                        mutableStateOf(TextFieldValue(s, TextRange(0, s.length)))
-                    }
+                Crossfade(
+                    targetState = isEditing,
+                    animationSpec = tween(200),
+                    label = "editCrossfade"
+                ) { editing ->
+                    if (editing) {
+                        var tfv by remember(value) {
+                            val s = value.toString()
+                            mutableStateOf(TextFieldValue(s, TextRange(0, s.length)))
+                        }
 
-                    LaunchedEffect(Unit) {
-                        focusRequester.requestFocus()
-                        keyboardController?.show()
-                    }
+                        LaunchedEffect(Unit) {
+                            focusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
 
-                    BasicTextField(
-                        value = tfv,
-                        onValueChange = { newVal ->
-                            val filtered = newVal.text.filter { it.isDigit() }
-                            tfv = newVal.copy(text = filtered)
-                        },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
-                        ),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = { commitEdit(tfv.text) }
-                        ),
-                        modifier = Modifier
-                            .widthIn(min = 48.dp)
-                            .focusRequester(focusRequester)
-                            .onFocusChanged { if (!it.isFocused) commitEdit(tfv.text) }
-                    )
-                } else {
-                    Text(
-                        text = value.toString(),
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
-                    )
+                        BasicTextField(
+                            value = tfv,
+                            onValueChange = { newVal ->
+                                val filtered = newVal.text.filter { it.isDigit() }
+                                tfv = newVal.copy(text = filtered)
+                                currentEditText = filtered
+                            },
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
+                            ),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { commitAndExit() }
+                            ),
+                            modifier = Modifier
+                                .widthIn(min = 48.dp)
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        hasFocusedOnce = true
+                                    } else if (hasFocusedOnce) {
+                                        commitAndExit()
+                                    }
+                                }
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier.height(44.dp).widthIn(min = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = value.toString(),
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace
+                                ),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
 
-            // Plus button (accent colored glass circle)
+            // Plus button — always enabled, commits current edit first if active
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -384,7 +433,6 @@ private fun StepperRow(
                                 shape = { CircleShape },
                                 effects = {
                                     vibrancy()
-                                    blur(2f.dp.toPx())
                                 },
                                 onDrawSurface = {
                                     drawRect(primaryColor.copy(alpha = 0.8f))
@@ -394,7 +442,7 @@ private fun StepperRow(
                             Modifier.background(primaryColor, CircleShape)
                         }
                     )
-                    .clickable { onValueChange(value + 1) },
+                    .clickable { commitThenStep(1L) },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Add, "Increase", modifier = Modifier.size(20.dp), tint = androidx.compose.ui.graphics.Color.White)

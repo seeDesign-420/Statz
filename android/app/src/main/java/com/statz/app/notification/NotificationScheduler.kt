@@ -30,7 +30,7 @@ class NotificationScheduler @Inject constructor(
      * @param urgency The query urgency — passed to the receiver for channel selection.
      */
     fun scheduleQueryAlarm(queryId: String, triggerAtMillis: Long, urgency: QueryUrgency) {
-        val pendingIntent = buildPendingIntent(queryId, urgency)
+        val pendingIntent = buildQueryPendingIntent(queryId, urgency)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // API 31+: check if exact alarms are allowed
@@ -61,11 +61,50 @@ class NotificationScheduler @Inject constructor(
      * Cancel a previously scheduled alarm for a query.
      */
     fun cancelQueryAlarm(queryId: String) {
-        val pendingIntent = buildPendingIntent(queryId, QueryUrgency.MEDIUM)
+        val pendingIntent = buildQueryPendingIntent(queryId, QueryUrgency.MEDIUM)
         alarmManager.cancel(pendingIntent)
     }
 
-    private fun buildPendingIntent(queryId: String, urgency: QueryUrgency): PendingIntent {
+    // ── Task Alarms ─────────────────────────────────────────────
+
+    /**
+     * Schedule (or reschedule) an exact alarm for a task due-date reminder.
+     */
+    fun scheduleTaskAlarm(taskId: String, triggerAtMillis: Long) {
+        val pendingIntent = buildTaskPendingIntent(taskId)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        }
+    }
+
+    /**
+     * Cancel a previously scheduled alarm for a task.
+     */
+    fun cancelTaskAlarm(taskId: String) {
+        val pendingIntent = buildTaskPendingIntent(taskId)
+        alarmManager.cancel(pendingIntent)
+    }
+
+    private fun buildQueryPendingIntent(queryId: String, urgency: QueryUrgency): PendingIntent {
         val intent = Intent(context, QueryAlarmReceiver::class.java).apply {
             action = ACTION_QUERY_ALARM
             putExtra(EXTRA_QUERY_ID, queryId)
@@ -74,6 +113,19 @@ class NotificationScheduler @Inject constructor(
         return PendingIntent.getBroadcast(
             context,
             queryId.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun buildTaskPendingIntent(taskId: String): PendingIntent {
+        val intent = Intent(context, TaskAlarmReceiver::class.java).apply {
+            action = TaskAlarmReceiver.ACTION_TASK_ALARM
+            putExtra(TaskAlarmReceiver.EXTRA_TASK_ID, taskId)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            "task_$taskId".hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

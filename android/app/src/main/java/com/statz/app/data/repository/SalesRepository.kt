@@ -5,8 +5,10 @@ import com.statz.app.data.local.model.DailySalesRecordEntity
 import com.statz.app.data.local.model.DailySalesValueEntity
 import com.statz.app.data.local.model.MonthlyTargetEntity
 import com.statz.app.data.local.model.SalesCategoryEntity
+import com.statz.app.domain.model.AppConfig
 import com.statz.app.domain.model.CategoryType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
@@ -55,10 +57,10 @@ class SalesRepository @Inject constructor(
     private val salesDao: SalesDao
 ) {
 
-    private val timezone = ZoneId.of("Africa/Johannesburg")
+    private val timezone = AppConfig.TIMEZONE
 
     fun observeActiveCategories(): Flow<List<SalesCategoryEntity>> =
-        salesDao.observeActiveCategories()
+        salesDao.observeActiveCategories().distinctUntilChanged()
 
     // ── Dashboard ───────────────────────────────────────────────
 
@@ -107,7 +109,7 @@ class SalesRepository @Inject constructor(
     // ── Targets ─────────────────────────────────────────────────
 
     fun observeTargetsForMonth(monthKey: String): Flow<List<MonthlyTargetEntity>> =
-        salesDao.observeTargetsForMonth(monthKey)
+        salesDao.observeTargetsForMonth(monthKey).distinctUntilChanged()
 
     suspend fun saveTarget(monthKey: String, categoryId: String, value: Long) {
         val now = System.currentTimeMillis()
@@ -149,16 +151,14 @@ class SalesRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val monthKey = entry.dateKey.substring(0, 7) // YYYY-MM
 
-        salesDao.upsertDailyRecord(
-            DailySalesRecordEntity(
-                dateKey = entry.dateKey,
-                monthKey = monthKey,
-                updatedAt = now,
-                openOrdersNew = entry.openOrdersNew,
-                openOrdersUpgrade = entry.openOrdersUpgrade,
-                declinedNew = entry.declinedNew,
-                declinedUpgrade = entry.declinedUpgrade
-            )
+        val record = DailySalesRecordEntity(
+            dateKey = entry.dateKey,
+            monthKey = monthKey,
+            updatedAt = now,
+            openOrdersNew = entry.openOrdersNew,
+            openOrdersUpgrade = entry.openOrdersUpgrade,
+            declinedNew = entry.declinedNew,
+            declinedUpgrade = entry.declinedUpgrade
         )
 
         val salesValues = entry.categoryValues.map { (categoryId, value) ->
@@ -170,9 +170,7 @@ class SalesRepository @Inject constructor(
             )
         }
 
-        if (salesValues.isNotEmpty()) {
-            salesDao.upsertDailyValues(salesValues)
-        }
+        salesDao.upsertDailyRecordWithValues(record, salesValues)
     }
 
     /**

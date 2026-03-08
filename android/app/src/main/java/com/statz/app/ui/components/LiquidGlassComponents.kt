@@ -3,13 +3,17 @@ package com.statz.app.ui.components
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import com.statz.app.ui.theme.StatzAnimation
+import com.statz.app.ui.theme.GlassTint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -58,6 +62,7 @@ fun StatzLiquidButton(
     tint: Color = Color.Unspecified,
     surfaceColor: Color = Color.Unspecified,
     buttonHeight: Dp = 48.dp,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     Row(
@@ -67,7 +72,6 @@ fun StatzLiquidButton(
                 shape = { CapsuleShape },
                 effects = {
                     vibrancy()
-                    blur(2f.dp.toPx())
                 },
                 onDrawSurface = {
                     if (tint.isSpecified) {
@@ -86,7 +90,7 @@ fun StatzLiquidButton(
                 onClick = onClick
             )
             .height(buttonHeight)
-            .padding(horizontal = 16.dp),
+            .padding(contentPadding),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         content = content
@@ -110,7 +114,8 @@ fun StatzLiquidFab(
         backdrop = backdrop,
         modifier = modifier.size(56.dp),
         tint = tint,
-        buttonHeight = 56.dp
+        buttonHeight = 56.dp,
+        contentPadding = PaddingValues(0.dp)
     ) {
         Icon(
             imageVector = icon,
@@ -143,7 +148,7 @@ fun GlassNavBar(
                     blur(8f.dp.toPx())
                 },
                 onDrawSurface = {
-                    drawRect(Color(0xFF121212).copy(alpha = 0.4f))
+                    drawRect(GlassTint)
                 }
             )
             .height(56.dp),
@@ -197,7 +202,7 @@ fun StatzPillTabRow(
     androidx.compose.foundation.lazy.LazyRow(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         content = content
     )
@@ -226,7 +231,6 @@ fun StatzPillTab(
                     shape = { CapsuleShape },
                     effects = {
                         vibrancy()
-                        blur(2f.dp.toPx())
                     },
                     onDrawSurface = {
                         drawRect(accentColor, blendMode = BlendMode.Hue)
@@ -389,7 +393,6 @@ fun StatzGlassToggle(
                     shape = { CapsuleShape },
                     effects = {
                         vibrancy()
-                        blur(2f.dp.toPx())
                     },
                     onDrawSurface = {
                         if (checked) {

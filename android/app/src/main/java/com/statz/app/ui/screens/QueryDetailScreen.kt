@@ -1,7 +1,17 @@
 package com.statz.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,6 +92,7 @@ fun QueryDetailScreen(
 ) {
     val state by viewModel.detailState.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf(false) }
 
     LaunchedEffect(queryId) { viewModel.loadQueryDetail(queryId) }
 
@@ -130,16 +141,60 @@ fun QueryDetailScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         IconButton(onClick = { navController.popBackStack() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                         }
-                        Text(
-                            state.query?.ticketNumber?.ifEmpty { "#${queryId.take(8)}" } ?: "",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp,
-                            modifier = Modifier.padding(start = 8.dp)
+
+                        // Inline-editable ticket number — always a real TextField
+                        val displayTicket = state.query?.ticketNumber?.ifEmpty { "#${queryId.take(8)}" } ?: ""
+                        var editedTicket by remember(displayTicket) { mutableStateOf(displayTicket) }
+                        var isFocused by remember { mutableStateOf(false) }
+                        val keyboardController = LocalSoftwareKeyboardController.current
+
+                        BasicTextField(
+                            value = editedTicket,
+                            onValueChange = { editedTicket = it },
+                            textStyle = MaterialTheme.typography.headlineSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            singleLine = true,
+                            cursorBrush = SolidColor(Primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                if (editedTicket.isNotBlank()) {
+                                    viewModel.updateTicketNumber(queryId, editedTicket.trim())
+                                }
+                                keyboardController?.hide()
+                            }),
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 8.dp)
+                                .onFocusChanged { focusState ->
+                                    isFocused = focusState.isFocused
+                                    if (!focusState.isFocused && editedTicket.isNotBlank()) {
+                                        viewModel.updateTicketNumber(queryId, editedTicket.trim())
+                                    }
+                                },
+                            decorationBox = { innerTextField ->
+                                Column {
+                                    innerTextField()
+                                    if (isFocused) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Box(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .height(2.dp)
+                                                .background(Primary)
+                                        )
+                                    }
+                                }
+                            }
                         )
                     }
                     IconButton(onClick = { showDeleteDialog = true }) {
@@ -364,7 +419,8 @@ fun QueryDetailScreen(
         }
     }
 
-    // Delete confirmation dialog
+    // Delete confirmation dialog — onConfirm flags pending delete,
+    // navigation happens in onDismiss so dialog stays over detail screen.
     if (showDeleteDialog) {
         val dialogHost = com.statz.app.ui.components.LocalDialogHost.current
         androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -375,9 +431,14 @@ fun QueryDetailScreen(
                     confirmText = "Delete",
                     onConfirm = {
                         viewModel.deleteQuery(queryId)
-                        navController.popBackStack()
+                        pendingDelete = true
                     },
-                    onDismiss = { showDeleteDialog = false }
+                    onDismiss = {
+                        showDeleteDialog = false
+                        if (pendingDelete) {
+                            navController.popBackStack()
+                        }
+                    }
                 )
             )
         }

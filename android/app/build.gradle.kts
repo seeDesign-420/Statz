@@ -15,7 +15,7 @@ android {
     defaultConfig {
         applicationId = "com.statz.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
@@ -99,10 +99,14 @@ dependencies {
     // Charts
     implementation(libs.compose.charts)
 
+    // Date/Time Picker (scroll-wheel style)
+    implementation(libs.compose.datepicker)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.turbine)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

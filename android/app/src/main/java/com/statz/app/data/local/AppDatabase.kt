@@ -20,6 +20,7 @@ import com.statz.app.data.local.model.TaskItemEntity
 import com.statz.app.domain.model.CategoryType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @Database(
@@ -45,9 +46,6 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
 
         const val DATABASE_NAME = "statz_db"
-
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
 
         /**
          * Migration from v1 to v2: add custom_follow_up_hours column.
@@ -93,33 +91,6 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
-         * Get or create the database instance.
-         * Used by BroadcastReceivers where Hilt DI is not available.
-         */
-        fun getInstance(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    DATABASE_NAME
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .addCallback(createSeedCallback {
-                        INSTANCE ?: throw IllegalStateException("DB not initialized")
-                    })
-                    .build()
-                    .also { INSTANCE = it }
-            }
-        }
-
-        /**
-         * Set the instance (called from DI module to share the same instance).
-         */
-        fun setInstance(db: AppDatabase) {
-            INSTANCE = db
-        }
-
-        /**
          * Seeded sales categories per spec §2.1.
          */
         val SEED_CATEGORIES = listOf(
@@ -146,8 +117,12 @@ abstract class AppDatabase : RoomDatabase() {
             return object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    CoroutineScope(Dispatchers.IO).launch {
-                        database().salesDao().insertCategories(SEED_CATEGORIES)
+                    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                        try {
+                            database().salesDao().insertCategories(SEED_CATEGORIES)
+                        } catch (e: Exception) {
+                            android.util.Log.e("AppDatabase", "Failed to seed categories", e)
+                        }
                     }
                 }
             }

@@ -8,6 +8,7 @@ import com.statz.app.domain.model.QueryUrgency
 import com.statz.app.domain.model.WorkHoursUtils
 import com.statz.app.notification.NotificationScheduler
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalTime
 import java.util.UUID
 import javax.inject.Inject
@@ -20,19 +21,19 @@ class QueryRepository @Inject constructor(
 ) {
 
     fun observeAllQueries(): Flow<List<QueryItemEntity>> =
-        queryDao.observeAllQueries()
+        queryDao.observeAllQueries().distinctUntilChanged()
 
     fun observeQueriesByStatus(status: QueryStatus): Flow<List<QueryItemEntity>> =
-        queryDao.observeQueriesByStatus(status)
+        queryDao.observeQueriesByStatus(status).distinctUntilChanged()
 
     fun searchQueries(search: String): Flow<List<QueryItemEntity>> =
-        queryDao.searchQueries(search)
+        queryDao.searchQueries(search).distinctUntilChanged()
 
     fun observeQueryById(id: String): Flow<QueryItemEntity?> =
-        queryDao.observeQueryById(id)
+        queryDao.observeQueryById(id).distinctUntilChanged()
 
     fun observeLogEntries(queryId: String): Flow<List<QueryLogEntryEntity>> =
-        queryDao.observeLogEntries(queryId)
+        queryDao.observeLogEntries(queryId).distinctUntilChanged()
 
     // ── Create ──────────────────────────────────────────────────
 

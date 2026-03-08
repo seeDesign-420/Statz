@@ -7,7 +7,11 @@ import com.statz.app.data.local.model.QueryLogEntryEntity
 import com.statz.app.data.repository.QueryRepository
 import com.statz.app.domain.model.QueryStatus
 import com.statz.app.domain.model.QueryUrgency
+import androidx.compose.runtime.Immutable
+import com.statz.app.domain.model.AppConfig
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,12 +21,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@Immutable
 data class QueriesUiState(
     val searchQuery: String = "",
     val activeFilter: QueryStatus? = null, // null = All
     val isSearchActive: Boolean = false
 )
 
+@Immutable
 data class QueryDetailUiState(
     val query: QueryItemEntity? = null,
     val logs: List<QueryLogEntryEntity> = emptyList(),
@@ -30,6 +36,7 @@ data class QueryDetailUiState(
     val noteText: String = ""
 )
 
+@Immutable
 data class NewQueryUiState(
     val ticketNumber: String = "",
     val customerId: String = "",
@@ -43,8 +50,13 @@ data class NewQueryUiState(
 
 @HiltViewModel
 class QueriesViewModel @Inject constructor(
-    private val queryRepository: QueryRepository
+    private val queryRepository: QueryRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    private companion object {
+        const val KEY_SEARCH = "search_query"
+    }
 
     private val _uiState = MutableStateFlow(QueriesUiState())
     val uiState: StateFlow<QueriesUiState> = _uiState.asStateFlow()
@@ -84,14 +96,19 @@ class QueriesViewModel @Inject constructor(
 
     // ── Detail ──────────────────────────────────────────────────
 
+    private var detailQueryJob: Job? = null
+    private var detailLogsJob: Job? = null
+
     fun loadQueryDetail(queryId: String) {
         _detailState.value = QueryDetailUiState(isLoading = true)
-        viewModelScope.launch {
+        detailQueryJob?.cancel()
+        detailLogsJob?.cancel()
+        detailQueryJob = viewModelScope.launch {
             queryRepository.observeQueryById(queryId).collect { query ->
                 _detailState.value = _detailState.value.copy(query = query, isLoading = false)
             }
         }
-        viewModelScope.launch {
+        detailLogsJob = viewModelScope.launch {
             queryRepository.observeLogEntries(queryId).collect { logs ->
                 _detailState.value = _detailState.value.copy(logs = logs)
             }
@@ -134,10 +151,10 @@ class QueriesViewModel @Inject constructor(
 
     fun snoozeTomorrow9am(queryId: String) {
         viewModelScope.launch {
-            val tomorrow = java.time.LocalDate.now(java.time.ZoneId.of("Africa/Johannesburg")).plusDays(1)
+            val tomorrow = java.time.LocalDate.now(AppConfig.TIMEZONE).plusDays(1)
             val at9 = java.time.ZonedDateTime.of(
                 tomorrow, java.time.LocalTime.of(9, 0),
-                java.time.ZoneId.of("Africa/Johannesburg")
+                AppConfig.TIMEZONE
             ).toInstant().toEpochMilli()
             queryRepository.snoozeUntil(queryId, at9)
         }
@@ -196,5 +213,11 @@ class QueriesViewModel @Inject constructor(
 
     fun deleteQuery(queryId: String) {
         viewModelScope.launch { queryRepository.deleteQuery(queryId) }
+    }
+
+    fun updateTicketNumber(queryId: String, ticketNumber: String) {
+        viewModelScope.launch {
+            queryRepository.updateQueryFields(queryId, ticketNumber = ticketNumber)
+        }
     }
 }

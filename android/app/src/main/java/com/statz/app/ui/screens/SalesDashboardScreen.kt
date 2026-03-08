@@ -3,7 +3,9 @@ package com.statz.app.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -105,18 +107,22 @@ fun SalesDashboardScreen(
                         com.statz.app.ui.components.StatzLiquidButton(
                             onClick = { viewModel.previousMonth() },
                             backdrop = backdrop,
-                            modifier = Modifier.size(40.dp),
-                            buttonHeight = 40.dp
+                            modifier = Modifier.size(44.dp),
+                            buttonHeight = 44.dp,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            Icon(Icons.Default.ChevronLeft, "Previous month", modifier = Modifier.size(20.dp), tint = Color.White)
+                            Icon(Icons.Default.ChevronLeft, "Previous month", modifier = Modifier.size(24.dp), tint = Color.White)
                         }
                         com.statz.app.ui.components.StatzLiquidButton(
                             onClick = { viewModel.nextMonth() },
                             backdrop = backdrop,
-                            modifier = Modifier.size(40.dp),
-                            buttonHeight = 40.dp
+                            modifier = Modifier.size(44.dp),
+                            buttonHeight = 44.dp,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            Icon(Icons.Default.ChevronRight, "Next month", modifier = Modifier.size(20.dp), tint = Color.White)
+                            Icon(Icons.Default.ChevronRight, "Next month", modifier = Modifier.size(24.dp), tint = Color.White)
                         }
                     }
                 }
@@ -189,44 +195,11 @@ fun SalesDashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("NEW LINES", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 2.sp, fontSize = 10.sp)
-                        Text(
-                            text = "$totalNewLines",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Monospace),
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        if (totalNewLinesTarget > 0) {
-                            Text("/ $totalNewLinesTarget", style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    // Subtle vertical divider
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(56.dp)
-                            .background(Color.White.copy(alpha = 0.1f))
-                    )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("UPGRADES", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 2.sp, fontSize = 10.sp)
-                        Text(
-                            text = "$totalUpgrades",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Monospace),
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        if (totalUpgradesTarget > 0) {
-                            Text("/ $totalUpgradesTarget", style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
+                com.statz.app.ui.components.UnitSplitDonut(
+                    newLines = totalNewLines,
+                    upgrades = totalUpgrades,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             // Unit Categories Performance Section

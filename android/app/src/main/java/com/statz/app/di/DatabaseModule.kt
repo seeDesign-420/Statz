@@ -31,8 +31,6 @@ object DatabaseModule {
             .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .addCallback(AppDatabase.createSeedCallback { db })
             .build()
-        // Share instance with BroadcastReceivers
-        AppDatabase.setInstance(db)
         return db
     }
 

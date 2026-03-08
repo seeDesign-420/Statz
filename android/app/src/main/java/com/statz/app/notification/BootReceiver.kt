@@ -3,8 +3,9 @@ package com.statz.app.notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.statz.app.data.local.AppDatabase
+import com.statz.app.di.DatabaseEntryPoint
 import com.statz.app.domain.model.QueryStatus
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,18 +22,20 @@ class BootReceiver : BroadcastReceiver() {
         if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
 
         val pendingResult = goAsync()
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            DatabaseEntryPoint::class.java
+        )
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val db = AppDatabase.getInstance(context)
-                val scheduler = NotificationScheduler(
-                    context,
-                    context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-                )
+                val queryDao = entryPoint.queryDao()
+                val taskDao = entryPoint.taskDao()
+                val scheduler = entryPoint.notificationScheduler()
 
                 // Get all non-closed queries and reschedule their alarms
                 val now = System.currentTimeMillis()
-                val openQueries = db.queryDao().getAllNonClosedQueries()
+                val openQueries = queryDao.getAllNonClosedQueries()
 
                 for (query in openQueries) {
                     val triggerAt = if (query.nextFollowUpAt > now) {
@@ -42,6 +45,14 @@ class BootReceiver : BroadcastReceiver() {
                         now + 1000L
                     }
                     scheduler.scheduleQueryAlarm(query.id, triggerAt, query.urgency)
+                }
+
+                // Get all tasks with reminders and reschedule their alarms
+                val reminderTasks = taskDao.getReminderEnabledTasks()
+                for (task in reminderTasks) {
+                    val dueAt = task.dueAt ?: continue
+                    val triggerAt = if (dueAt > now) dueAt else now + 1000L
+                    scheduler.scheduleTaskAlarm(task.id, triggerAt)
                 }
             } finally {
                 pendingResult.finish()

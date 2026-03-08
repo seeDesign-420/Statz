@@ -5,15 +5,22 @@ import androidx.lifecycle.viewModelScope
 import com.statz.app.data.local.model.TaskItemEntity
 import com.statz.app.data.repository.TaskRepository
 import com.statz.app.domain.model.QueryUrgency
+import androidx.compose.runtime.Immutable
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@Immutable
 data class TaskDetailUiState(
     val task: TaskItemEntity? = null,
     val isLoading: Boolean = true
@@ -21,7 +28,8 @@ data class TaskDetailUiState(
 
 @HiltViewModel
 class TasksViewModel @Inject constructor(
-    private val taskRepository: TaskRepository
+    private val taskRepository: TaskRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _quickAddText = MutableStateFlow("")
@@ -29,6 +37,9 @@ class TasksViewModel @Inject constructor(
 
     private val _detailState = MutableStateFlow(TaskDetailUiState())
     val detailState: StateFlow<TaskDetailUiState> = _detailState.asStateFlow()
+
+    private val _saveEvent = MutableSharedFlow<String>()
+    val saveEvent: SharedFlow<String> = _saveEvent.asSharedFlow()
 
     // Section-based reactive task lists for Today View
     val overdueTasks = taskRepository.observeOverdueTasks()
@@ -73,9 +84,12 @@ class TasksViewModel @Inject constructor(
 
     // ── Detail ──────────────────────────────────────────────────
 
+    private var detailJob: Job? = null
+
     fun loadTaskDetail(taskId: String) {
         _detailState.value = TaskDetailUiState(isLoading = true)
-        viewModelScope.launch {
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
             taskRepository.observeTaskById(taskId).collect { task ->
                 _detailState.value = TaskDetailUiState(task = task, isLoading = false)
             }
@@ -110,6 +124,7 @@ class TasksViewModel @Inject constructor(
                 reminderEnabled = reminderEnabled ?: current.reminderEnabled
             )
             taskRepository.updateTask(updated)
+            _saveEvent.emit("Task saved")
         }
     }
 

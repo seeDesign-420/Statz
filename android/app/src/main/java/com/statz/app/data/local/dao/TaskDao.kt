@@ -116,4 +116,15 @@ interface TaskDao {
 
     @Query("UPDATE task_items SET is_done = :isDone, updated_at = :updatedAt WHERE id = :id")
     suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long)
+
+    /**
+     * All tasks with reminders enabled and a due date set (for boot rescheduling).
+     */
+    @Query("""
+        SELECT * FROM task_items
+        WHERE is_done = 0
+          AND reminder_enabled = 1
+          AND due_at IS NOT NULL
+    """)
+    suspend fun getReminderEnabledTasks(): List<TaskItemEntity>
 }
