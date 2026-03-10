@@ -2,7 +2,6 @@ package com.statz.app.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import com.statz.app.ui.theme.StatzAnimation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -109,7 +108,7 @@ fun CategoryProgressRow(
     val isComplete = actual >= target && target > 0
     val animatedProgress by animateFloatAsState(
         targetValue = if (target == 0L) 0f else (actual.toFloat() / target.toFloat()).coerceIn(0f, 1f),
-        animationSpec = StatzAnimation.progressTween(),
+        animationSpec = StatzAnimation.easeSpring(),
         label = "progressAnim"
     )
 
@@ -294,17 +293,17 @@ fun SelectionChipButton(
 ) {
     val bgColor by animateColorAsState(
         targetValue = if (isSelected) color.copy(alpha = 0.15f) else Color.Transparent,
-        animationSpec = StatzAnimation.microTween(),
+        animationSpec = StatzAnimation.microSpring(),
         label = "chipBg"
     )
     val contentColor by animateColorAsState(
         targetValue = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = StatzAnimation.microTween(),
+        animationSpec = StatzAnimation.microSpring(),
         label = "chipContent"
     )
     val borderColor by animateColorAsState(
         targetValue = if (isSelected) color.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
-        animationSpec = StatzAnimation.microTween(),
+        animationSpec = StatzAnimation.microSpring(),
         label = "chipBorder"
     )
 

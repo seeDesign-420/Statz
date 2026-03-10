@@ -33,7 +33,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 val query = queryDao.getQueryById(queryId) ?: return@launch
                 val now = System.currentTimeMillis()
 
-                val scheduler = entryPoint.notificationScheduler()
+                val scheduler = entryPoint.alarmScheduler()
 
                 when (intent.action) {
                     ACTION_SNOOZE -> {

@@ -1,12 +1,15 @@
 package com.statz.app.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import com.statz.app.ui.theme.StatzAnimation
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,6 +56,12 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import android.graphics.BitmapFactory
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -71,8 +80,8 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
 import com.statz.app.ui.theme.DarkBackground
-import com.statz.app.ui.theme.DarkOnSurfaceVariant
 import com.statz.app.ui.theme.DarkSurfaceVariant
+import com.statz.app.ui.theme.DarkOnSurfaceVariant
 import com.statz.app.ui.theme.Primary
 import com.statz.app.ui.theme.GlassTint
 import com.statz.app.ui.theme.GlassTintDark
@@ -81,6 +90,19 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 val LocalBackdrop = staticCompositionLocalOf<LayerBackdrop?> { null }
+
+/**
+ * Cached noise texture bitmap for glass card overlays.
+ * Loaded once from drawable resources and reused across recompositions.
+ */
+@Composable
+fun rememberNoiseBitmap(): ImageBitmap {
+    val context = LocalContext.current
+    return remember {
+        BitmapFactory.decodeResource(context.resources, com.statz.app.R.drawable.noise_texture)
+            .asImageBitmap()
+    }
+}
 
 @Composable
 fun StatzGlassBackground(
@@ -142,6 +164,31 @@ fun GlassScreenBackground(
     )
 }
 
+/**
+ * Applies a subtle noise texture overlay to the component.
+ * Used to give glassmorphic elements a premium, physical grain.
+ */
+fun Modifier.noiseOverlay(noiseBitmap: ImageBitmap?, alpha: Float = 0.06f): Modifier = this.drawWithContent {
+    drawContent()
+    if (noiseBitmap != null) {
+        val tileW = noiseBitmap.width
+        val tileH = noiseBitmap.height
+        val cols = (size.width / tileW).toInt() + 1
+        val rows = (size.height / tileH).toInt() + 1
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                drawImage(
+                    image = noiseBitmap,
+                    dstOffset = IntOffset(col * tileW, row * tileH),
+                    dstSize = IntSize(tileW, tileH),
+                    alpha = alpha,
+                    blendMode = BlendMode.Overlay
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun StatzGlassCard(
     modifier: Modifier = Modifier,
@@ -152,6 +199,7 @@ fun StatzGlassCard(
     content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit
 ) {
     val backdrop = LocalBackdrop.current
+
     if (backdrop != null) {
         Box(
             modifier = modifier
@@ -290,7 +338,12 @@ fun StatzGlassDialogOverlay(
                     Box(
                         Modifier
                             .weight(1f)
-                            .background(DarkSurfaceVariant, androidx.compose.foundation.shape.RoundedCornerShape(50))
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { androidx.compose.foundation.shape.RoundedCornerShape(50) },
+                                effects = { vibrancy() },
+                                onDrawSurface = { drawRect(DarkSurfaceVariant) }
+                            )
                             .clickable(
                                 interactionSource = null,
                                 indication = null,
@@ -308,7 +361,12 @@ fun StatzGlassDialogOverlay(
                     Box(
                         Modifier
                             .weight(1f)
-                            .background(config.confirmColor, androidx.compose.foundation.shape.RoundedCornerShape(50))
+                            .drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { androidx.compose.foundation.shape.RoundedCornerShape(50) },
+                                effects = { vibrancy() },
+                                onDrawSurface = { drawRect(config.confirmColor) }
+                            )
                             .clickable(
                                 interactionSource = null,
                                 indication = null,
@@ -369,12 +427,12 @@ fun StatzGlassToastHost(
             visible = message != null,
             enter = slideInVertically(
                 initialOffsetY = { it },
-                animationSpec = tween(300)
-            ) + fadeIn(animationSpec = tween(300)),
+                animationSpec = StatzAnimation.overshootSpring()
+            ) + fadeIn(animationSpec = StatzAnimation.standardSpring()),
             exit = slideOutVertically(
                 targetOffsetY = { it / 2 },
-                animationSpec = tween(250)
-            ) + fadeOut(animationSpec = tween(250))
+                animationSpec = StatzAnimation.standardSpring()
+            ) + fadeOut(animationSpec = StatzAnimation.standardSpring())
         ) {
             if (message != null) {
                 Row(
@@ -571,29 +629,24 @@ fun StatzGlassDatePickerOverlay(
         }
     }
 
-    // Entrance animation trigger
+    // Entrance animation trigger — brief delay lets wheels settle before animating in
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(50); visible = true }
 
     androidx.activity.compose.BackHandler(onBack = onDismiss)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawPlainBackdrop(
-                backdrop = backdrop,
-                shape = { androidx.compose.ui.graphics.RectangleShape },
-                effects = { blur(24f.dp.toPx()) },
-                onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.5f)) }
-            )
+            .background(Color.Black.copy(alpha = 0.5f))
             .clickable(interactionSource = null, indication = null, onClick = onDismiss),
         contentAlignment = Alignment.Center
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(tween(200)) + scaleIn(
+            enter = fadeIn(StatzAnimation.standardSpring()) + scaleIn(
                 initialScale = 0.92f,
-                animationSpec = tween(250)
+                animationSpec = StatzAnimation.overshootSpring()
             )
         ) {
             Box(
@@ -661,7 +714,7 @@ fun StatzGlassDatePickerOverlay(
                                     backdrop = backdrop,
                                     shape = { RoundedCornerShape(50) },
                                     effects = { vibrancy(); blur(2f.dp.toPx()) },
-                                    onDrawSurface = {}
+                                    onDrawSurface = { drawRect(DarkSurfaceVariant) }
                                 )
                                 .clickable(interactionSource = null, indication = null, onClick = onDismiss)
                                 .height(40.dp),
@@ -728,16 +781,7 @@ fun StatzGlassTimePickerOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawPlainBackdrop(
-                backdrop = backdrop,
-                shape = { androidx.compose.ui.graphics.RectangleShape },
-                effects = {
-                    blur(24f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.Black.copy(alpha = 0.5f))
-                }
-            )
+            .background(Color.Black.copy(alpha = 0.5f))
             .clickable(
                 interactionSource = null,
                 indication = null,
@@ -747,9 +791,9 @@ fun StatzGlassTimePickerOverlay(
     ) {
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(tween(200)) + scaleIn(
+            enter = fadeIn(StatzAnimation.standardSpring()) + scaleIn(
                 initialScale = 0.92f,
-                animationSpec = tween(250)
+                animationSpec = StatzAnimation.overshootSpring()
             )
         ) {
             Box(
@@ -827,7 +871,7 @@ fun StatzGlassTimePickerOverlay(
                                     vibrancy()
                                     blur(2f.dp.toPx())
                                 },
-                                onDrawSurface = {}
+                                onDrawSurface = { drawRect(DarkSurfaceVariant) }
                             )
                             .clickable(
                                 interactionSource = null,

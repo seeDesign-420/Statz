@@ -3,7 +3,7 @@ package com.statz.app.di
 import com.statz.app.data.local.AppDatabase
 import com.statz.app.data.local.dao.QueryDao
 import com.statz.app.data.local.dao.TaskDao
-import com.statz.app.notification.NotificationScheduler
+import com.statz.app.notification.AlarmScheduler
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -20,5 +20,5 @@ interface DatabaseEntryPoint {
     fun appDatabase(): AppDatabase
     fun queryDao(): QueryDao
     fun taskDao(): TaskDao
-    fun notificationScheduler(): NotificationScheduler
+    fun alarmScheduler(): AlarmScheduler
 }

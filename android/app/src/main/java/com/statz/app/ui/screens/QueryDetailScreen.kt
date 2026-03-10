@@ -312,13 +312,13 @@ fun QueryDetailScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val snoozeBackdrop = com.statz.app.ui.components.LocalBackdrop.current
                     if (snoozeBackdrop != null) {
-                        com.statz.app.ui.components.StatzLiquidButton(onClick = { viewModel.snooze1Hour(queryId) }, backdrop = snoozeBackdrop) {
+                        com.statz.app.ui.components.StatzLiquidButton(onClick = { viewModel.snooze1Hour(queryId) }, backdrop = snoozeBackdrop, surfaceColor = DarkSurfaceVariant) {
                             Text("+1h", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color.White)
                         }
-                        com.statz.app.ui.components.StatzLiquidButton(onClick = { viewModel.snooze4Hours(queryId) }, backdrop = snoozeBackdrop) {
+                        com.statz.app.ui.components.StatzLiquidButton(onClick = { viewModel.snooze4Hours(queryId) }, backdrop = snoozeBackdrop, surfaceColor = DarkSurfaceVariant) {
                             Text("+4h", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color.White)
                         }
-                        com.statz.app.ui.components.StatzLiquidButton(onClick = { viewModel.snoozeTomorrow9am(queryId) }, backdrop = snoozeBackdrop) {
+                        com.statz.app.ui.components.StatzLiquidButton(onClick = { viewModel.snoozeTomorrow9am(queryId) }, backdrop = snoozeBackdrop, surfaceColor = DarkSurfaceVariant) {
                             Text("Tomorrow 09:00", fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color.White)
                         }
                     }

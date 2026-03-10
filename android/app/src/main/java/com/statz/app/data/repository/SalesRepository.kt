@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -33,6 +34,7 @@ data class MonthDashboard(
     val monthKey: String,
     val totalUnits: Long,
     val totalRevenue: Long, // cents — Accessories + Cash Sales
+    val previousMonthRevenue: Long, // cents - Total Revenue of Previous Month
     val categories: List<CategoryDashboard>,
     val openOrdersNew: Int,
     val openOrdersUpgrade: Int,
@@ -50,6 +52,14 @@ data class DailyEntry(
     val openOrdersUpgrade: Int,
     val declinedNew: Int,
     val declinedUpgrade: Int
+)
+
+/**
+ * Room query result for daily revenue totals.
+ */
+data class DailyRevenueRow(
+    val date_key: String,
+    val total: Long
 )
 
 @Singleton
@@ -94,10 +104,14 @@ class SalesRepository @Inject constructor(
             )
         }
 
+        val previousMonthKey = YearMonth.parse(monthKey).minusMonths(1).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        val previousMonthRevenue = salesDao.getMonthlyTotalRevenue(previousMonthKey)
+
         return MonthDashboard(
             monthKey = monthKey,
             totalUnits = totalUnits,
             totalRevenue = totalRevenue,
+            previousMonthRevenue = previousMonthRevenue,
             categories = categoryRows,
             openOrdersNew = salesDao.getMonthlyOpenOrdersNew(monthKey),
             openOrdersUpgrade = salesDao.getMonthlyOpenOrdersUpgrade(monthKey),
@@ -225,7 +239,66 @@ class SalesRepository @Inject constructor(
         }
     }
 
+    // ── Revenue History (wave chart) ──────────────────────────
+
+    /**
+     * Returns a chronological list of daily revenue values (in cents)
+     * for use in a line/wave chart.
+     */
+    suspend fun getDailyRevenueHistory(monthKey: String): List<Double> {
+        return salesDao.getDailyRevenueForMonth(monthKey)
+            .map { it.total.toDouble() }
+    }
+
+    // ── XLSX Import ──────────────────────────────────────────────
+
+    /**
+     * Import daily sales data and monthly targets from a parsed XLSX result.
+     * REPLACES all existing targets and actuals for the month — POS data
+     * is the source of truth and takes precedence over manual entries.
+     */
+    suspend fun importFromXlsx(result: com.statz.app.domain.xlsximport.XlsxImportResult) {
+        val now = System.currentTimeMillis()
+
+        // Build target entities
+        val targetEntities = result.targets.map { (categoryId, value) ->
+            MonthlyTargetEntity(
+                id = "${result.monthKey}_${categoryId}",
+                monthKey = result.monthKey,
+                categoryId = categoryId,
+                targetValue = value,
+                updatedAt = now
+            )
+        }
+
+        // Build daily record + value entities
+        val recordEntities = mutableListOf<DailySalesRecordEntity>()
+        val valueEntities = mutableListOf<DailySalesValueEntity>()
+
+        for ((dateKey, categoryValues) in result.dailyEntries) {
+            recordEntities += DailySalesRecordEntity(
+                dateKey = dateKey,
+                monthKey = result.monthKey,
+                updatedAt = now
+            )
+            valueEntities += categoryValues.map { (categoryId, value) ->
+                DailySalesValueEntity(
+                    id = "${dateKey}_${categoryId}",
+                    dateKey = dateKey,
+                    categoryId = categoryId,
+                    value = value
+                )
+            }
+        }
+
+        // Atomic replace: delete old month data → insert from XLSX
+        salesDao.replaceMonthFromXlsx(
+            result.monthKey, targetEntities, recordEntities, valueEntities
+        )
+    }
+
     // ── Helpers ─────────────────────────────────────────────────
+
 
     fun currentMonthKey(): String {
         val today = LocalDate.now(timezone)

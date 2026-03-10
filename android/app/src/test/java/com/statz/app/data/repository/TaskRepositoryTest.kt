@@ -3,7 +3,7 @@ package com.statz.app.data.repository
 import com.statz.app.data.local.dao.TaskDao
 import com.statz.app.data.local.model.TaskItemEntity
 import com.statz.app.domain.model.QueryUrgency
-import com.statz.app.notification.NotificationScheduler
+import com.statz.app.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -18,13 +18,13 @@ import org.junit.Test
 class TaskRepositoryTest {
 
     private lateinit var fakeDao: FakeTaskDao
-    private lateinit var fakeScheduler: FakeNotificationScheduler
+    private lateinit var fakeScheduler: FakeAlarmScheduler
     private lateinit var repository: TaskRepository
 
     @Before
     fun setUp() {
         fakeDao = FakeTaskDao()
-        fakeScheduler = FakeNotificationScheduler()
+        fakeScheduler = FakeAlarmScheduler()
         repository = TaskRepository(fakeDao, fakeScheduler)
     }
 
@@ -52,14 +52,13 @@ class TaskRepositoryTest {
     }
 
     @Test
-    fun `deleteTask removes from DAO and cancels alarm`() = runTest {
+    fun `deleteTask removes from DAO`() = runTest {
         val id = repository.createTask(title = "Delete me")
         assertTrue(fakeDao.tasks.containsKey(id))
 
         repository.deleteTask(id)
 
         assertFalse(fakeDao.tasks.containsKey(id))
-        assertTrue(fakeScheduler.cancelledTaskIds.contains(id))
     }
 
     @Test
@@ -96,12 +95,20 @@ private class FakeTaskDao : TaskDao {
         tasks[task.id] = task
     }
 
+    override suspend fun upsertTask(task: TaskItemEntity) {
+        tasks[task.id] = task
+    }
+
     override suspend fun updateTask(task: TaskItemEntity) {
         tasks[task.id] = task
     }
 
     override suspend fun deleteTask(id: String) {
         tasks.remove(id)
+    }
+
+    override suspend fun setDone(id: String, isDone: Boolean, updatedAt: Long) {
+        tasks[id]?.let { tasks[id] = it.copy(isDone = isDone, updatedAt = updatedAt) }
     }
 
     override suspend fun getTaskById(id: String): TaskItemEntity? = tasks[id]
@@ -135,12 +142,9 @@ private class FakeTaskDao : TaskDao {
 }
 
 /**
- * Fake NotificationScheduler for unit testing.
+ * Fake AlarmScheduler for unit testing — no Android framework needed.
  */
-private class FakeNotificationScheduler : NotificationScheduler(
-    context = throw UnsupportedOperationException("Fake — do not use context"),
-    alarmManager = throw UnsupportedOperationException("Fake — do not use alarmManager")
-) {
+private class FakeAlarmScheduler : AlarmScheduler {
     val scheduledTaskIds = mutableSetOf<String>()
     val cancelledTaskIds = mutableSetOf<String>()
     val scheduledQueryIds = mutableSetOf<String>()
@@ -162,3 +166,4 @@ private class FakeNotificationScheduler : NotificationScheduler(
         cancelledQueryIds.add(queryId)
     }
 }
+

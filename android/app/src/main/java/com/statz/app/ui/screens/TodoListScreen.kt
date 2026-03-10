@@ -2,7 +2,6 @@ package com.statz.app.ui.screens
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import com.statz.app.ui.theme.StatzAnimation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -196,7 +195,7 @@ fun TodoListScreen(
                 item {
                     val chevronRotation by animateFloatAsState(
                         targetValue = if (completedExpanded) 180f else 0f,
-                        animationSpec = StatzAnimation.microTween(),
+                        animationSpec = StatzAnimation.microSpring(),
                         label = "chevron"
                     )
                     Row(

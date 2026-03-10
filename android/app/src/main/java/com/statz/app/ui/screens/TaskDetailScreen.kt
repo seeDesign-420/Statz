@@ -30,7 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.CrisisAlert
 import androidx.compose.material.icons.outlined.LocalFireDepartment
@@ -148,7 +148,7 @@ fun TaskDetailScreen(
                                 )
                             }
                             IconButton(onClick = { showDeleteDialog = true }) {
-                                Icon(Icons.Default.Delete, "Delete", tint = Error)
+                                Icon(Icons.Outlined.DeleteOutline, "Delete task", tint = Error)
                             }
                         }
                         // Editable title

@@ -68,7 +68,7 @@ class QueryAlarmReceiver : BroadcastReceiver() {
                 )
 
                 // Reschedule alarm for the next follow-up
-                val scheduler = entryPoint.notificationScheduler()
+                val scheduler = entryPoint.alarmScheduler()
                 scheduler.scheduleQueryAlarm(queryId, nextFollowUp, query.urgency)
 
             } finally {

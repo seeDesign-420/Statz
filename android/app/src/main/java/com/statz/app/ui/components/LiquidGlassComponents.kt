@@ -1,7 +1,6 @@
 package com.statz.app.ui.components
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import com.statz.app.ui.theme.StatzAnimation
 import com.statz.app.ui.theme.GlassTint
 import androidx.compose.foundation.background
@@ -377,7 +376,7 @@ fun StatzGlassToggle(
 
     val thumbOffset by animateDpAsState(
         targetValue = if (checked) trackWidth - thumbSize - thumbPadding * 2 else 0.dp,
-        animationSpec = StatzAnimation.microTween(),
+        animationSpec = StatzAnimation.microSpring(),
         label = "thumbOffset"
     )
 

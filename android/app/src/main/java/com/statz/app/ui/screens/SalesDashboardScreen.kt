@@ -43,10 +43,16 @@ import androidx.navigation.NavController
 import com.statz.app.domain.model.CategoryType
 import com.statz.app.ui.components.CategoryProgressRow
 import com.statz.app.ui.components.KpiCard
+import com.statz.app.ui.components.noiseOverlay
+import com.statz.app.ui.components.rememberNoiseBitmap
 import com.statz.app.ui.navigation.Screen
 import com.statz.app.ui.viewmodel.SalesViewModel
 import androidx.compose.ui.graphics.Color
 import com.statz.app.domain.model.MoneyUtils
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -87,7 +93,7 @@ fun SalesDashboardScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(32.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Floating Top Bar (Month Navigation)
             Row(
@@ -128,27 +134,98 @@ fun SalesDashboardScreen(
                 }
             }
 
-            // Total Revenue KPI
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            // Total Revenue KPI with Wave Chart
+            val noiseBitmap = rememberNoiseBitmap()
+
+            com.statz.app.ui.components.StatzGlassCard(
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                shape = RoundedCornerShape(20.dp),
+                tintColor = Color(0xFF2A2A2A)
             ) {
-                Text(
-                    text = "TOTAL REVENUE",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 2.sp
-                )
-                Text(
-                    text = MoneyUtils.centsToDisplay(dashboard.totalRevenue),
-                    style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Monospace),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .noiseOverlay(noiseBitmap)
+                ) {
+                    // Revenue wave chart placed at the bottom natively
+                    if (state.dailyRevenueHistory.size >= 2) {
+                        com.statz.app.ui.components.RevenueWaveChart(
+                            values = state.dailyRevenueHistory,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight()
+                                .padding(top = 110.dp)
+                                .align(Alignment.BottomCenter)
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.Top
+                    ) {
+                        Text(
+                            text = MoneyUtils.centsToDisplay(dashboard.totalRevenue),
+                            style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace),
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Total Revenue",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        
+                        val diff = dashboard.totalRevenue - dashboard.previousMonthRevenue
+                        val pct = if (dashboard.previousMonthRevenue > 0) ((diff.toFloat() / dashboard.previousMonthRevenue) * 100) else if (dashboard.totalRevenue > 0) 100f else 0f
+                        val isPositive = diff >= 0
+                        val diffStr = MoneyUtils.centsToDisplay(kotlin.math.abs(diff))
+                        val pctStr = (if (isPositive) "+" else "") + "%.1f%%".format(pct)
+                        val trendColor = if (isPositive) com.statz.app.ui.theme.Success else com.statz.app.ui.theme.Error
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = pctStr,
+                                style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace),
+                                color = trendColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = " | $diffStr vs Last Month",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
             }
 
-            // Main Action Buttons
+
+            com.statz.app.ui.components.StatzGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                tintColor = Color(0xFF2A2A2A)
+            ) {
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .noiseOverlay(noiseBitmap)
+                ) {
+                    com.statz.app.ui.components.SalesBreakdownChart(
+                        dashboard = dashboard,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Unit Categories Performance Section
+            com.statz.app.ui.components.CategoryMetricGrid(
+                dashboard = dashboard,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Main Action Buttons (bottom-anchored per mockup)
             if (backdrop != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -174,39 +251,6 @@ fun SalesDashboardScreen(
                     }
                 }
             }
-
-            // New Lines vs Upgrades Summary
-            val newLineIds = setOf("new", "sme_new", "ec_new")
-            val upgradeIds = setOf("upgrade", "sme_up", "ec_upgd")
-            val totalNewLines = dashboard.categories
-                .filter { it.category.id in newLineIds }
-                .sumOf { it.actual }
-            val totalNewLinesTarget = dashboard.categories
-                .filter { it.category.id in newLineIds }
-                .sumOf { it.target }
-            val totalUpgrades = dashboard.categories
-                .filter { it.category.id in upgradeIds }
-                .sumOf { it.actual }
-            val totalUpgradesTarget = dashboard.categories
-                .filter { it.category.id in upgradeIds }
-                .sumOf { it.target }
-
-            com.statz.app.ui.components.StatzGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                com.statz.app.ui.components.UnitSplitDonut(
-                    newLines = totalNewLines,
-                    upgrades = totalUpgrades,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // Unit Categories Performance Section
-            com.statz.app.ui.components.CategoryBarChart(
-                dashboard = dashboard,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             Spacer(Modifier.height(80.dp))
         }

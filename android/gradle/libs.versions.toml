@@ -18,6 +18,7 @@ material3 = "1.3.1"
 compose-charts = "0.1.9"
 turbine = "1.1.0"
 compose-datepicker = "2.2.1"
+poi = "5.2.5"
 
 [libraries]
 # Core
@@ -74,6 +75,10 @@ androidx-room-testing = { group = "androidx.room", name = "room-testing", versio
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 compose-charts = { group = "io.github.ehsannarmani", name = "compose-charts", version.ref = "compose-charts" }
 compose-datepicker = { group = "com.github.vsnappy1", name = "ComposeDatePicker", version.ref = "compose-datepicker" }
+
+# Apache POI (XLSX parsing)
+apache-poi = { group = "org.apache.poi", name = "poi", version.ref = "poi" }
+apache-poi-ooxml = { group = "org.apache.poi", name = "poi-ooxml", version.ref = "poi" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

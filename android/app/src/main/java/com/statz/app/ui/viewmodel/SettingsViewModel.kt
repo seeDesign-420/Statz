@@ -1,14 +1,17 @@
 package com.statz.app.ui.viewmodel
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.statz.app.data.backup.BackupManager
+import com.statz.app.data.repository.SalesRepository
 import com.statz.app.data.settings.AppSettings
 import com.statz.app.data.settings.SettingsDataStore
+import com.statz.app.domain.xlsximport.XlsxImporter
 import androidx.compose.runtime.Immutable
-import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +31,9 @@ data class BackupUiState(
 class SettingsViewModel @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
     private val backupManager: BackupManager,
-    private val savedStateHandle: SavedStateHandle
+    private val xlsxImporter: XlsxImporter,
+    private val salesRepository: SalesRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = settingsDataStore.settings
@@ -84,6 +89,30 @@ class SettingsViewModel @Inject constructor(
             _backupState.value = BackupUiState(
                 lastResult = if (result.isSuccess) "Import successful — restart recommended" else "Import failed: ${result.exceptionOrNull()?.message}"
             )
+        }
+    }
+
+    // ── XLSX Import ─────────────────────────────────────────────
+
+    fun importXlsx(uri: Uri, filename: String) {
+        _backupState.value = BackupUiState(isImporting = true)
+        viewModelScope.launch {
+            try {
+                appContext.contentResolver.openInputStream(uri)?.use { stream ->
+                    val result = xlsxImporter.parse(stream, filename)
+                    salesRepository.importFromXlsx(result)
+                    val skipped = if (result.skippedProducts.isNotEmpty()) {
+                        " (skipped: ${result.skippedProducts.joinToString()})"
+                    } else ""
+                    _backupState.value = BackupUiState(
+                        lastResult = "Imported ${result.monthKey} for ${result.salesPersonName}$skipped"
+                    )
+                } ?: throw IllegalStateException("Could not open file")
+            } catch (e: Exception) {
+                _backupState.value = BackupUiState(
+                    lastResult = "Import failed: ${e.message}"
+                )
+            }
         }
     }
 

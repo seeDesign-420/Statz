@@ -31,7 +31,7 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 val queryDao = entryPoint.queryDao()
                 val taskDao = entryPoint.taskDao()
-                val scheduler = entryPoint.notificationScheduler()
+                val scheduler = entryPoint.alarmScheduler()
 
                 // Get all non-closed queries and reschedule their alarms
                 val now = System.currentTimeMillis()

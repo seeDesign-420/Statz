@@ -73,6 +73,15 @@ fun SettingsScreen(
 ) {
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val backupState by settingsViewModel.backupState.collectAsStateWithLifecycle()
+    val toastHost = com.statz.app.ui.components.LocalToastHost.current
+
+    // Show backup result as a glass toast
+    androidx.compose.runtime.LaunchedEffect(backupState.lastResult) {
+        backupState.lastResult?.let { result ->
+            toastHost(result)
+            settingsViewModel.clearBackupResult()
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -84,6 +93,22 @@ fun SettingsScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let { settingsViewModel.importBackup(it) }
+    }
+
+    // XLSX import launcher
+    val xlsxImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            // Extract filename from URI for month parsing
+            val cursor = navController.context.contentResolver.query(it, null, null, null, null)
+            val filename = cursor?.use { c ->
+                val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                c.moveToFirst()
+                if (nameIndex >= 0) c.getString(nameIndex) else null
+            } ?: "unknown.xlsx"
+            settingsViewModel.importXlsx(it, filename)
+        }
     }
 
     Scaffold(
@@ -108,10 +133,8 @@ fun SettingsScreen(
 
             // ── Profile ──────────────────────────────────────────
             SectionTitle("Profile")
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1C1C1E),
-                tonalElevation = 0.dp
+            com.statz.app.ui.components.StatzGlassCard(
+                shape = RoundedCornerShape(16.dp)
             ) {
                 var nameText by remember(settings.displayName) { mutableStateOf(settings.displayName) }
                 val commitName = {
@@ -125,7 +148,7 @@ fun SettingsScreen(
                         Icon(
                             Icons.Default.Edit,
                             null,
-                            tint = Color(0xFF8E8E93),
+                            tint = DarkOnSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     },
@@ -150,35 +173,54 @@ fun SettingsScreen(
             }
             // ── Sales ───────────────────────────────────────────
             SectionTitle("Sales")
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1C1C1E),
-                tonalElevation = 0.dp
+            com.statz.app.ui.components.StatzGlassCard(
+                shape = RoundedCornerShape(16.dp)
             ) {
-                SettingsRow(
-                    icon = {
-                        Icon(
-                            Icons.Default.Edit,
-                            null,
-                            tint = Color(0xFF8E8E93),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    label = "Edit Monthly Targets",
-                    onClick = {
-                        navController.navigate(
-                            Screen.EditTargets.createRoute(salesViewModel.currentMonthKey())
-                        )
-                    }
-                )
+                Column {
+                    SettingsRow(
+                        icon = {
+                            Icon(
+                                Icons.Default.Edit,
+                                null,
+                                tint = DarkOnSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        label = "Edit Monthly Targets",
+                        onClick = {
+                            navController.navigate(
+                                Screen.EditTargets.createRoute(salesViewModel.currentMonthKey())
+                            )
+                        }
+                    )
+                    HorizontalDivider(color = DarkOutline)
+                    SettingsRow(
+                        icon = {
+                            Icon(
+                                Icons.Default.Backup,
+                                null,
+                                tint = DarkOnSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        label = "Import Sales Tracker (.xlsx)",
+                        onClick = {
+                            xlsxImportLauncher.launch(
+                                arrayOf(
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    "application/vnd.ms-excel"
+                                )
+                            )
+                        }
+                    )
+                }
             }
+
 
             // ── Notifications ───────────────────────────────────
             SectionTitle("Notifications")
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1C1C1E),
-                tonalElevation = 0.dp
+            com.statz.app.ui.components.StatzGlassCard(
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column {
                     SettingsRow(
@@ -186,7 +228,7 @@ fun SettingsScreen(
                             Icon(
                                 Icons.Default.Notifications,
                                 null,
-                                tint = Color(0xFF8E8E93),
+                                tint = DarkOnSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         },
@@ -198,13 +240,13 @@ fun SettingsScreen(
                             )
                         }
                     )
-                    HorizontalDivider(color = Color(0xFF38383A))
+                    HorizontalDivider(color = DarkOutline)
                     SettingsRow(
                         icon = {
                             Icon(
                                 Icons.Default.Notifications,
                                 null,
-                                tint = Color(0xFF8E8E93),
+                                tint = DarkOnSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         },
@@ -221,10 +263,8 @@ fun SettingsScreen(
 
             // ── Backup ──────────────────────────────────────────
             SectionTitle("Backup & Restore")
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1C1C1E),
-                tonalElevation = 0.dp
+            com.statz.app.ui.components.StatzGlassCard(
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column {
                     SettingsRow(
@@ -232,20 +272,20 @@ fun SettingsScreen(
                             Icon(
                                 Icons.Default.Backup,
                                 null,
-                                tint = Color(0xFF8E8E93),
+                                tint = DarkOnSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         },
                         label = "Export Backup",
                         onClick = { exportLauncher.launch("statz_backup.json") }
                     )
-                    HorizontalDivider(color = Color(0xFF38383A))
+                    HorizontalDivider(color = DarkOutline)
                     SettingsRow(
                         icon = {
                             Icon(
                                 Icons.Default.Restore,
                                 null,
-                                tint = Color(0xFF8E8E93),
+                                tint = DarkOnSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         },
@@ -255,30 +295,19 @@ fun SettingsScreen(
                 }
             }
 
-            // Backup status message
-            backupState.lastResult?.let { result ->
-                Text(
-                    text = result,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (result.startsWith("Export successful") || result.startsWith("Import successful"))
-                        Success else Error,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
+
 
             // ── Help ────────────────────────────────────────────
             SectionTitle("System")
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1C1C1E),
-                tonalElevation = 0.dp
+            com.statz.app.ui.components.StatzGlassCard(
+                shape = RoundedCornerShape(16.dp)
             ) {
                 SettingsRow(
                     icon = {
                         Icon(
                             Icons.Default.HelpOutline,
                             null,
-                            tint = Color(0xFF8E8E93),
+                            tint = DarkOnSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     },
@@ -297,7 +326,7 @@ private fun SectionTitle(text: String) {
         text = text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
-        color = Color(0xFF8E8E93),
+        color = DarkOnSurfaceVariant,
         letterSpacing = 2.sp
     )
 }

@@ -20,7 +20,7 @@ import javax.inject.Singleton
 class NotificationScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val alarmManager: AlarmManager
-) {
+) : AlarmScheduler {
 
     /**
      * Schedule (or reschedule) an exact alarm for a query follow-up.
@@ -29,7 +29,7 @@ class NotificationScheduler @Inject constructor(
      * @param triggerAtMillis The exact epoch millis when the notification should fire.
      * @param urgency The query urgency — passed to the receiver for channel selection.
      */
-    fun scheduleQueryAlarm(queryId: String, triggerAtMillis: Long, urgency: QueryUrgency) {
+    override fun scheduleQueryAlarm(queryId: String, triggerAtMillis: Long, urgency: QueryUrgency) {
         val pendingIntent = buildQueryPendingIntent(queryId, urgency)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -60,7 +60,7 @@ class NotificationScheduler @Inject constructor(
     /**
      * Cancel a previously scheduled alarm for a query.
      */
-    fun cancelQueryAlarm(queryId: String) {
+    override fun cancelQueryAlarm(queryId: String) {
         val pendingIntent = buildQueryPendingIntent(queryId, QueryUrgency.MEDIUM)
         alarmManager.cancel(pendingIntent)
     }
@@ -70,7 +70,7 @@ class NotificationScheduler @Inject constructor(
     /**
      * Schedule (or reschedule) an exact alarm for a task due-date reminder.
      */
-    fun scheduleTaskAlarm(taskId: String, triggerAtMillis: Long) {
+    override fun scheduleTaskAlarm(taskId: String, triggerAtMillis: Long) {
         val pendingIntent = buildTaskPendingIntent(taskId)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -99,7 +99,7 @@ class NotificationScheduler @Inject constructor(
     /**
      * Cancel a previously scheduled alarm for a task.
      */
-    fun cancelTaskAlarm(taskId: String) {
+    override fun cancelTaskAlarm(taskId: String) {
         val pendingIntent = buildTaskPendingIntent(taskId)
         alarmManager.cancel(pendingIntent)
     }

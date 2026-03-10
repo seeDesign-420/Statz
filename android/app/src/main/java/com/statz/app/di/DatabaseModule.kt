@@ -7,6 +7,7 @@ import com.statz.app.data.local.AppDatabase
 import com.statz.app.data.local.dao.QueryDao
 import com.statz.app.data.local.dao.SalesDao
 import com.statz.app.data.local.dao.TaskDao
+import com.statz.app.notification.AlarmScheduler
 import com.statz.app.notification.NotificationScheduler
 import dagger.Module
 import dagger.Provides
@@ -50,8 +51,8 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideNotificationScheduler(
+    fun provideAlarmScheduler(
         @ApplicationContext context: Context,
         alarmManager: AlarmManager
-    ): NotificationScheduler = NotificationScheduler(context, alarmManager)
+    ): AlarmScheduler = NotificationScheduler(context, alarmManager)
 }

@@ -49,6 +49,19 @@ android {
     room {
         schemaDirectory("$projectDir/schemas")
     }
+
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/versions/**"
+            )
+        }
+    }
 }
 
 dependencies {
@@ -101,6 +114,10 @@ dependencies {
 
     // Date/Time Picker (scroll-wheel style)
     implementation(libs.compose.datepicker)
+
+    // Apache POI (XLSX import)
+    implementation(libs.apache.poi)
+    implementation(libs.apache.poi.ooxml)
 
     // Testing
     testImplementation(libs.junit)

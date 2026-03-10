@@ -6,8 +6,10 @@ import com.statz.app.data.local.model.DailySalesValueEntity
 import com.statz.app.data.local.model.MonthlyTargetEntity
 import com.statz.app.data.local.model.SalesCategoryEntity
 import com.statz.app.domain.model.CategoryType
+import com.statz.app.domain.xlsximport.XlsxImportResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -37,15 +39,10 @@ class SalesRepositoryTest {
         )
         fakeDao.categoriesFlow.value = categories
 
-        val result = mutableListOf<List<SalesCategoryEntity>>()
-        repository.observeActiveCategories().collect {
-            result.add(it)
-            return@collect // take first emission
-        }
+        val emission = repository.observeActiveCategories().first()
 
-        assertEquals(1, result.size)
-        assertEquals(2, result[0].size)
-        assertEquals("new", result[0][0].id)
+        assertEquals(2, emission.size)
+        assertEquals("new", emission[0].id)
     }
 
     @Test
@@ -77,25 +74,52 @@ class SalesRepositoryTest {
 
         assertNotNull(fakeDao.lastUpsertedTarget)
         assertEquals("2024-01_new", fakeDao.lastUpsertedTarget?.id)
-        assertEquals(100L, fakeDao.lastUpsertedTarget?.target)
+        assertEquals(100L, fakeDao.lastUpsertedTarget?.targetValue)
     }
 
     @Test
-    fun `incrementCategory increments existing value`() = runTest {
-        // Pre-fill a value
-        fakeDao.dailyValuesMap["2024-01-15"] = mutableListOf(
-            DailySalesValueEntity("2024-01-15_new", "2024-01-15", "new", 5L)
+    fun `importFromXlsx replaces existing targets and actuals`() = runTest {
+        val monthKey = "2024-06"
+
+        // Pre-populate stale data that should be deleted on import
+        fakeDao.targetsMap[monthKey] = mutableListOf(
+            MonthlyTargetEntity("${monthKey}_stale_cat", monthKey, "stale_cat", 999L, 0L)
         )
-        fakeDao.dailyRecordsMap["2024-01-15"] = DailySalesRecordEntity(
-            dateKey = "2024-01-15", monthKey = "2024-01", updatedAt = 0L,
-            openOrdersNew = 0, openOrdersUpgrade = 0, declinedNew = 0, declinedUpgrade = 0
+        fakeDao.dailyRecordsMap["2024-06-01"] = DailySalesRecordEntity(
+            dateKey = "2024-06-01", monthKey = monthKey, updatedAt = 0L
+        )
+        fakeDao.dailyValuesMap["2024-06-01"] = mutableListOf(
+            DailySalesValueEntity("2024-06-01_stale_cat", "2024-06-01", "stale_cat", 777L)
         )
 
-        repository.incrementCategory("new", "2024-01-15")
+        // Import fresh XLSX data
+        val result = XlsxImportResult(
+            monthKey = monthKey,
+            salesPersonName = "Test User",
+            targets = mapOf("new" to 10L, "upgrade" to 5L),
+            dailyEntries = mapOf(
+                "2024-06-03" to mapOf("new" to 2L, "upgrade" to 1L)
+            ),
+            skippedProducts = emptyList()
+        )
+        repository.importFromXlsx(result)
 
-        // Value should be 6 now (5 + 1)
-        val updated = fakeDao.dailyValuesMap["2024-01-15"]?.find { it.categoryId == "new" }
-        assertEquals(6L, updated?.value)
+        // Stale target should be gone
+        val targets = fakeDao.targetsMap[monthKey] ?: emptyList()
+        assertNull(targets.find { it.categoryId == "stale_cat" })
+
+        // New targets should be present
+        assertNotNull(targets.find { it.categoryId == "new" && it.targetValue == 10L })
+        assertNotNull(targets.find { it.categoryId == "upgrade" && it.targetValue == 5L })
+
+        // Stale daily data should be gone
+        assertNull(fakeDao.dailyRecordsMap["2024-06-01"])
+        assertTrue(fakeDao.dailyValuesMap["2024-06-01"].isNullOrEmpty())
+
+        // New daily data should be present
+        assertNotNull(fakeDao.dailyRecordsMap["2024-06-03"])
+        assertEquals(2L, fakeDao.dailyValuesMap["2024-06-03"]?.find { it.categoryId == "new" }?.value)
+        assertEquals(1L, fakeDao.dailyValuesMap["2024-06-03"]?.find { it.categoryId == "upgrade" }?.value)
     }
 }
 
@@ -109,25 +133,51 @@ private class FakeSalesDao : SalesDao {
     var lastUpsertedTarget: MonthlyTargetEntity? = null
     val dailyValuesMap = mutableMapOf<String, MutableList<DailySalesValueEntity>>()
     val dailyRecordsMap = mutableMapOf<String, DailySalesRecordEntity>()
+    val targetsMap = mutableMapOf<String, MutableList<MonthlyTargetEntity>>()
+
+    // ── Categories ──────────────────────────────────────────────
 
     override fun observeActiveCategories(): Flow<List<SalesCategoryEntity>> = categoriesFlow
 
+    override suspend fun getActiveCategories(): List<SalesCategoryEntity> =
+        categoriesFlow.value
+
     override suspend fun insertCategories(categories: List<SalesCategoryEntity>) {}
 
-    override fun observeTargetsForMonth(monthKey: String): Flow<List<MonthlyTargetEntity>> =
-        flowOf(emptyList())
+    // ── Targets ─────────────────────────────────────────────────
 
-    override suspend fun getTargetsForMonth(monthKey: String): List<MonthlyTargetEntity> =
-        emptyList()
+    override fun observeTargetsForMonth(monthKey: String): Flow<List<MonthlyTargetEntity>> =
+        flowOf(targetsMap[monthKey] ?: emptyList())
+
+    override suspend fun getTarget(monthKey: String, categoryId: String): MonthlyTargetEntity? =
+        targetsMap[monthKey]?.find { it.categoryId == categoryId }
 
     override suspend fun upsertTarget(target: MonthlyTargetEntity) {
         lastUpsertedTarget = target
+        targetsMap.getOrPut(target.monthKey) { mutableListOf() }.apply {
+            removeAll { it.categoryId == target.categoryId }
+            add(target)
+        }
     }
+
+    override suspend fun upsertTargets(targets: List<MonthlyTargetEntity>) {
+        targets.forEach { upsertTarget(it) }
+    }
+
+    // ── Daily Records ───────────────────────────────────────────
 
     override suspend fun upsertDailyRecord(record: DailySalesRecordEntity) {
         lastUpsertedRecord = record
         dailyRecordsMap[record.dateKey] = record
     }
+
+    override suspend fun getDailyRecord(dateKey: String): DailySalesRecordEntity? =
+        dailyRecordsMap[dateKey]
+
+    override fun observeDailyRecord(dateKey: String): Flow<DailySalesRecordEntity?> =
+        flowOf(dailyRecordsMap[dateKey])
+
+    // ── Daily Values ────────────────────────────────────────────
 
     override suspend fun upsertDailyValues(values: List<DailySalesValueEntity>) {
         lastUpsertedValues = values
@@ -150,11 +200,48 @@ private class FakeSalesDao : SalesDao {
     override suspend fun getDailyValues(dateKey: String): List<DailySalesValueEntity> =
         dailyValuesMap[dateKey] ?: emptyList()
 
-    override suspend fun getDailyRecord(dateKey: String): DailySalesRecordEntity? =
-        dailyRecordsMap[dateKey]
+    override fun observeDailyValues(dateKey: String): Flow<List<DailySalesValueEntity>> =
+        flowOf(dailyValuesMap[dateKey] ?: emptyList())
 
-    override suspend fun getMonthlyValuesSum(monthKey: String): List<DailySalesValueEntity> =
+    // ── XLSX Import (delete-then-insert) ────────────────────────
+
+    override suspend fun deleteTargetsForMonth(monthKey: String) {
+        targetsMap.remove(monthKey)
+    }
+
+    override suspend fun deleteDailyRecordsForMonth(monthKey: String) {
+        val keysToRemove = dailyRecordsMap.filter { it.value.monthKey == monthKey }.keys.toList()
+        keysToRemove.forEach { dateKey ->
+            dailyRecordsMap.remove(dateKey)
+            dailyValuesMap.remove(dateKey)
+        }
+    }
+
+    override suspend fun replaceMonthFromXlsx(
+        monthKey: String,
+        targets: List<MonthlyTargetEntity>,
+        records: List<DailySalesRecordEntity>,
+        values: List<DailySalesValueEntity>
+    ) {
+        deleteTargetsForMonth(monthKey)
+        deleteDailyRecordsForMonth(monthKey)
+        upsertTargets(targets)
+        records.forEach { upsertDailyRecord(it) }
+        if (values.isNotEmpty()) upsertDailyValues(values)
+    }
+
+    // ── Aggregation stubs (not exercised in repository tests) ───
+
+    override suspend fun getMonthlyActual(monthKey: String, categoryId: String): Long = 0L
+
+    override fun observeMonthlyActual(monthKey: String, categoryId: String): Flow<Long> =
+        flowOf(0L)
+
+    override suspend fun getMonthlyOpenOrdersNew(monthKey: String): Int = 0
+    override suspend fun getMonthlyOpenOrdersUpgrade(monthKey: String): Int = 0
+    override suspend fun getMonthlyDeclinedNew(monthKey: String): Int = 0
+    override suspend fun getMonthlyDeclinedUpgrade(monthKey: String): Int = 0
+    override suspend fun getMonthlyTotalRevenue(monthKey: String): Long = 0L
+    override suspend fun getDailyRevenueForMonth(monthKey: String): List<DailyRevenueRow> =
         emptyList()
-
-    override suspend fun getMonthlyRecordsSummed(monthKey: String): DailySalesRecordEntity? = null
 }

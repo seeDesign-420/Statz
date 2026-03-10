@@ -33,6 +33,7 @@ data class SalesUiState(
     val monthKey: String = "",
     val monthDisplay: String = "",
     val dashboard: MonthDashboard? = null,
+    val dailyRevenueHistory: List<Double> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -104,7 +105,12 @@ class SalesViewModel @Inject constructor(
         )
         viewModelScope.launch {
             val dashboard = salesRepository.getMonthDashboard(monthKey)
-            _salesState.value = _salesState.value.copy(dashboard = dashboard, isLoading = false)
+            val revenueHistory = salesRepository.getDailyRevenueHistory(monthKey)
+            _salesState.value = _salesState.value.copy(
+                dashboard = dashboard,
+                dailyRevenueHistory = revenueHistory,
+                isLoading = false
+            )
         }
     }
 

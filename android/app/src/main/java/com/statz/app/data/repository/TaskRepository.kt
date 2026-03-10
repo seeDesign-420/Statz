@@ -4,7 +4,7 @@ import com.statz.app.data.local.dao.TaskDao
 import com.statz.app.data.local.model.TaskItemEntity
 import com.statz.app.domain.model.AppConfig
 import com.statz.app.domain.model.QueryUrgency
-import com.statz.app.notification.NotificationScheduler
+import com.statz.app.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
@@ -28,7 +28,7 @@ data class TaskSections(
 @Singleton
 class TaskRepository @Inject constructor(
     private val taskDao: TaskDao,
-    private val notificationScheduler: NotificationScheduler
+    private val notificationScheduler: AlarmScheduler
 ) {
 
     private val timezone = AppConfig.TIMEZONE

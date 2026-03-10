@@ -2,7 +2,8 @@ package com.statz.app.ui.navigation
 
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import com.statz.app.ui.theme.StatzAnimation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -176,26 +177,20 @@ fun StatzNavHost() {
                     enterTransition = {
                         slideIntoContainer(
                             AnimatedContentTransitionScope.SlideDirection.Start,
-                            StatzAnimation.standardTween()
-                        )
+                            StatzAnimation.standardSpring()
+                        ) + fadeIn(StatzAnimation.standardSpring())
                     },
                     exitTransition = {
-                        slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Start,
-                            StatzAnimation.standardTween()
-                        )
+                        fadeOut(StatzAnimation.standardSpring())
                     },
                     popEnterTransition = {
-                        slideIntoContainer(
-                            AnimatedContentTransitionScope.SlideDirection.End,
-                            StatzAnimation.standardTween()
-                        )
+                        fadeIn(StatzAnimation.standardSpring())
                     },
                     popExitTransition = {
                         slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.End,
-                            StatzAnimation.standardTween()
-                        )
+                            AnimatedContentTransitionScope.SlideDirection.Start,
+                            StatzAnimation.standardSpring()
+                        ) + fadeOut(StatzAnimation.standardSpring())
                     }
                 ) {
                     // Tab roots: empty — rendered by HorizontalPager in sibling 1
@@ -278,15 +273,30 @@ fun StatzNavHost() {
         }
 
         // Sibling 3: Glass dialog overlay — uses subScreenBackdrop to blur the actual sub-screen
-        dialogConfigState.value?.let { config ->
-            com.statz.app.ui.components.StatzGlassDialogOverlay(
-                config = config,
-                backdrop = subScreenBackdrop,
-                onDismiss = {
-                    config.onDismiss()
-                    dialogConfigState.value = null
-                }
-            )
+        val currentDialogConfig = dialogConfigState.value
+        androidx.compose.animation.AnimatedVisibility(
+            visible = currentDialogConfig != null,
+            enter = fadeIn(StatzAnimation.standardSpring()) +
+                    androidx.compose.animation.scaleIn(
+                        initialScale = 0.92f,
+                        animationSpec = StatzAnimation.overshootSpring()
+                    ),
+            exit = fadeOut(StatzAnimation.standardSpring()) +
+                    androidx.compose.animation.scaleOut(
+                        targetScale = 0.92f,
+                        animationSpec = StatzAnimation.standardSpring()
+                    )
+        ) {
+            currentDialogConfig?.let { config ->
+                com.statz.app.ui.components.StatzGlassDialogOverlay(
+                    config = config,
+                    backdrop = subScreenBackdrop,
+                    onDismiss = {
+                        config.onDismiss()
+                        dialogConfigState.value = null
+                    }
+                )
+            }
         }
 
         // Sibling 4: Glass toast overlay — uses navBackdrop for frosted glass

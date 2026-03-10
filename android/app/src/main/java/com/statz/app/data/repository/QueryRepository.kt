@@ -6,7 +6,7 @@ import com.statz.app.data.local.model.QueryLogEntryEntity
 import com.statz.app.domain.model.QueryStatus
 import com.statz.app.domain.model.QueryUrgency
 import com.statz.app.domain.model.WorkHoursUtils
-import com.statz.app.notification.NotificationScheduler
+import com.statz.app.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalTime
@@ -17,7 +17,7 @@ import javax.inject.Singleton
 @Singleton
 class QueryRepository @Inject constructor(
     private val queryDao: QueryDao,
-    private val notificationScheduler: NotificationScheduler
+    private val notificationScheduler: AlarmScheduler
 ) {
 
     fun observeAllQueries(): Flow<List<QueryItemEntity>> =
