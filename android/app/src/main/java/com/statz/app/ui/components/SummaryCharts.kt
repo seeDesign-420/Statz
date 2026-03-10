@@ -1,8 +1,15 @@
 package com.statz.app.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
 import com.statz.app.ui.theme.StatzAnimation
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -43,6 +50,13 @@ import ir.ehsannarmani.compose_charts.models.LabelHelperProperties
 import ir.ehsannarmani.compose_charts.models.LabelProperties
 import ir.ehsannarmani.compose_charts.models.Line
 import ir.ehsannarmani.compose_charts.models.Pie
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+
 
 // ── Custom Rounded Donut ────────────────────────────────────────
 
@@ -95,140 +109,252 @@ data class DonutSegment(
     val color: Color
 )
 
-// ── Revenue Wave Chart ──────────────────────────────────────────
+// ── Premium Glow Line Chart ──────────────────────────────────────────
+
+@androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.TIRAMISU)
+private const val GLOW_NOISE_SHADER = """
+    uniform float2 resolution;
+
+    float hash(float2 p) {
+        return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    half4 main(float2 fragCoord) {
+        float n = hash(fragCoord);
+        return half4(n, n, n, n * 0.014);
+    }
+"""
 
 /**
- * A smooth, curved line chart with gradient fill showing
- * daily revenue trends within a month. Uses a 3-layer setup
- * to perfectly trace a volumetric neon glow over a deep area fill.
+ * Premium glowing filament line chart — cinematic Apple-style analytics card.
+ *
+ * Rendering pipeline (glow.md):
+ *  1. Solid dark background
+ *  2. Subtle vignette
+ *  3. Very faint grid
+ *  4. Atmospheric glow strokes (wide blurred)
+ *  5. Inner glow strokes (tight blur)
+ *  6. Core filament line
+ *  7. Subtle specular highlight
+ *  8. Grain / noise overlay
  */
 @Composable
-fun RevenueWaveChart(
+fun GlowLineChart(
     values: List<Double>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lineColor: Color = Color(0xFFFF7426)
 ) {
     if (values.size < 2) return
 
-    Box(modifier = modifier) {
-        // Layer 1: Area Fill Only
-        // Strong gradient falling from the curve to transparency
-        LineChart(
-            modifier = Modifier.fillMaxSize(),
-            data = remember(values) {
-                listOf(
-                    Line(
-                        label = "Revenue_Fill",
-                        values = values,
-                        color = SolidColor(Color.Transparent),
-                        firstGradientFillColor = Primary.copy(alpha = 0.5f), // Stronger start
-                        secondGradientFillColor = Color.Transparent,
-                        drawStyle = DrawStyle.Stroke(width = 0.dp),
-                        curvedEdges = true
+    // ── Energy flow animation — traveling highlight along the filament ──
+    val energyTransition = rememberInfiniteTransition(label = "energyFlow")
+    val energyProgress by energyTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "energyShift"
+    )
+
+    Spacer(
+        modifier = modifier
+            .fillMaxSize()
+            .drawWithCache {
+                val w = size.width
+                val h = size.height
+
+                // ── Value normalization (min/max range) ──
+                val minVal = values.min()
+                val maxVal = values.max()
+                val range = (maxVal - minVal).let { if (it == 0.0) 1.0 else it }
+
+                // Chart occupies the lower portion; top reserved for text overlay
+                val lineTopY = h * 0.42f
+                val lineAvailableH = h - lineTopY
+
+                val points = values.mapIndexed { index, value ->
+                    val x = w * (index.toFloat() / (values.size - 1).coerceAtLeast(1))
+                    val normalized = ((value - minVal) / range).toFloat()
+                    val y = lineTopY + lineAvailableH * (1f - normalized)
+                    Offset(x, y)
+                }
+
+                // ── Catmull-Rom → Cubic Bézier spline ──
+                val chartPath = Path().apply {
+                    if (points.size < 2) return@apply
+                    moveTo(points.first().x, points.first().y)
+                    for (i in 0 until points.size - 1) {
+                        val p0 = if (i > 0) points[i - 1] else points[i]
+                        val p1 = points[i]
+                        val p2 = points[i + 1]
+                        val p3 = if (i + 2 < points.size) points[i + 2] else points[i + 1]
+
+                        val cp1x = p1.x + (p2.x - p0.x) / 6f
+                        val cp1y = p1.y + (p2.y - p0.y) / 6f
+                        val cp2x = p2.x - (p3.x - p1.x) / 6f
+                        val cp2y = p2.y - (p3.y - p1.y) / 6f
+
+                        cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+                    }
+                }
+
+                // ── Cached brushes ──
+
+                // 2. Vignette
+                val vignetteBrush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF0E0E0E), Color(0xFF000000)),
+                    center = Offset(w / 2f, h / 2f),
+                    radius = w * 0.85f
+                )
+
+                // ── Cached paints (4-layer glow) ──
+
+                // 4a. Atmosphere stroke — widest, softest (tightened)
+                val atmospherePaint = androidx.compose.ui.graphics.Paint().asFrameworkPaint().apply {
+                    color = lineColor.copy(alpha = 0.06f).toArgb()
+                    strokeWidth = 56f
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeCap = android.graphics.Paint.Cap.ROUND
+                    strokeJoin = android.graphics.Paint.Join.ROUND
+                    isAntiAlias = true
+                    maskFilter = android.graphics.BlurMaskFilter(45f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                }
+
+                // 4b. Bloom stroke — intermediate (tightened)
+                val bloomPaint = androidx.compose.ui.graphics.Paint().asFrameworkPaint().apply {
+                    color = lineColor.copy(alpha = 0.12f).toArgb()
+                    strokeWidth = 26f
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeCap = android.graphics.Paint.Cap.ROUND
+                    strokeJoin = android.graphics.Paint.Join.ROUND
+                    isAntiAlias = true
+                    maskFilter = android.graphics.BlurMaskFilter(20f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                }
+
+                // 5a. Outer halo (tightened)
+                val outerHaloPaint = androidx.compose.ui.graphics.Paint().asFrameworkPaint().apply {
+                    color = lineColor.copy(alpha = 0.18f).toArgb()
+                    strokeWidth = 17f
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeCap = android.graphics.Paint.Cap.ROUND
+                    strokeJoin = android.graphics.Paint.Join.ROUND
+                    isAntiAlias = true
+                    maskFilter = android.graphics.BlurMaskFilter(18f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                }
+
+                // 5b. Tight halo (tightened)
+                val tightHaloPaint = androidx.compose.ui.graphics.Paint().asFrameworkPaint().apply {
+                    color = lineColor.copy(alpha = 0.50f).toArgb()
+                    strokeWidth = 8f
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeCap = android.graphics.Paint.Cap.ROUND
+                    strokeJoin = android.graphics.Paint.Join.ROUND
+                    isAntiAlias = true
+                    maskFilter = android.graphics.BlurMaskFilter(8f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                }
+
+                // 6. Core filament gradient — tight warm palette (refined)
+                val coreBrush = Brush.horizontalGradient(
+                    colors = listOf(Color(0xFFFFB56A), Color(0xFFFF7A2C), Color(0xFFFF5E14)),
+                    startX = 0f,
+                    endX = w
+                )
+
+                // 8. Noise shader brush (API 33+)
+                var noiseBrush: androidx.compose.ui.graphics.ShaderBrush? = null
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    val shader = android.graphics.RuntimeShader(GLOW_NOISE_SHADER)
+                    shader.setFloatUniform("resolution", w, h)
+                    noiseBrush = androidx.compose.ui.graphics.ShaderBrush(shader)
+                }
+
+
+                val androidPath = chartPath.asAndroidPath()
+
+                // Pre-cached energy highlight color list — avoids per-frame allocations
+                val energyColors = listOf(
+                    Color.Transparent,
+                    Color(0xFFFFC27A).copy(alpha = 0.04f),
+                    Color(0xFFFFC27A).copy(alpha = 0.70f),
+                    Color(0xFFFFC27A).copy(alpha = 0.04f),
+                    Color.Transparent
+                )
+
+                onDrawBehind {
+                    // Restore glow paints to base values (no breathing modulation)
+
+                    // 1. Solid dark background (deeper black for contrast)
+                    drawRect(color = Color(0xFF060606))
+
+                    // 2. Vignette
+                    drawRect(brush = vignetteBrush)
+
+                    // 3. Very faint grid
+                    val gridColor = Color.White.copy(alpha = 0.015f)
+                    val vLines = 6
+                    val hLines = 4
+                    for (i in 1 until vLines) {
+                        val x = w * (i.toFloat() / vLines)
+                        drawLine(gridColor, Offset(x, 0f), Offset(x, h), 1f)
+                    }
+                    for (i in 1 until hLines) {
+                        val y = h * (i.toFloat() / hLines)
+                        drawLine(gridColor, Offset(0f, y), Offset(w, y), 1f)
+                    }
+
+                    // 4. Atmospheric glow strokes (wide)
+                    drawIntoCanvas { canvas ->
+                        canvas.nativeCanvas.drawPath(androidPath, atmospherePaint)
+                    }
+
+                    // 5. Bloom glow strokes (medium)
+                    drawIntoCanvas { canvas ->
+                        canvas.nativeCanvas.drawPath(androidPath, bloomPaint)
+                    }
+
+
+                    // 6. Tight halo glow strokes
+                    drawIntoCanvas { canvas ->
+                        canvas.nativeCanvas.drawPath(androidPath, outerHaloPaint)
+                        canvas.nativeCanvas.drawPath(androidPath, tightHaloPaint)
+                    }
+
+                    // 8. Core filament line (thinner, hotter)
+                    drawPath(
+                        path = chartPath,
+                        brush = coreBrush,
+                        style = Stroke(width = 2.1.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
-                )
-            },
-            curvedEdges = true,
-            indicatorProperties = HorizontalIndicatorProperties(enabled = false),
-            gridProperties = GridProperties(enabled = false),
-            labelProperties = LabelProperties(enabled = false),
-            labelHelperProperties = LabelHelperProperties(enabled = false),
-            animationDelay = 0,
-            maxValue = values.max() * 1.1,
-            minValue = 0.0
-        )
 
-        // Layer 2: Outer Volumetric Glow
-        // Uses true Canvas blur modifier for neon bloom dispersion
-        LineChart(
-            modifier = Modifier
-                .fillMaxSize()
-                .blur(16.dp), // TRUE volumetric blur applied only to the glow layer
-            data = remember(values) {
-                listOf(
-                    Line(
-                        label = "Revenue_Glow",
-                        values = values,
-                        color = SolidColor(Primary.copy(alpha = 0.8f)), // High opacity, dispersed by blur
-                        firstGradientFillColor = Color.Transparent,
-                        secondGradientFillColor = Color.Transparent,
-                        drawStyle = DrawStyle.Stroke(width = 8.dp),
-                        curvedEdges = true
+                    // 9. Energy flow highlight — traveling warm streak along filament
+                    val energyX = -300f + energyProgress * (w + 600f)
+                    val energyBrush = Brush.linearGradient(
+                        colors = energyColors,
+                        start = Offset(energyX - 300f, 0f),
+                        end = Offset(energyX + 300f, 0f)
                     )
-                )
-            },
-            curvedEdges = true,
-            indicatorProperties = HorizontalIndicatorProperties(enabled = false),
-            gridProperties = GridProperties(enabled = false),
-            labelProperties = LabelProperties(enabled = false),
-            labelHelperProperties = LabelHelperProperties(enabled = false),
-            animationDelay = 0,
-            maxValue = values.max() * 1.1,
-            minValue = 0.0
-        )
-
-        // Layer 3: Inner Solid Core
-        // Sharp, bright, solid orange wire 
-        LineChart(
-            modifier = Modifier.fillMaxSize(),
-            data = remember(values) {
-                listOf(
-                    Line(
-                        label = "Revenue_Core",
-                        values = values,
-                        color = SolidColor(Primary), // Solid distinct orange
-                        firstGradientFillColor = Color.Transparent,
-                        secondGradientFillColor = Color.Transparent,
-                        drawStyle = DrawStyle.Stroke(width = 2.dp),
-                        curvedEdges = true
+                    drawPath(
+                        path = chartPath,
+                        brush = energyBrush,
+                        style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
-                )
-            },
-            curvedEdges = true,
-            indicatorProperties = HorizontalIndicatorProperties(enabled = false),
-            gridProperties = GridProperties(enabled = false),
-            labelProperties = LabelProperties(enabled = false),
-            labelHelperProperties = LabelHelperProperties(enabled = false),
-            animationDelay = 0,
-            maxValue = values.max() * 1.1,
-            minValue = 0.0
-        )
 
-        // Layer 4: Peak Glow Highlight (native Canvas)
-        val maxVal = values.maxOrNull() ?: 0.0
-        val maxIndex = values.indexOf(maxVal)
-        if (maxIndex >= 0) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val chartCeiling = maxVal * 1.1
-                val xPct = maxIndex.toFloat() / (values.size - 1).coerceAtLeast(1)
-                val yPct = if (chartCeiling > 0) (1f - (maxVal / chartCeiling).toFloat()) else 1f
+                    // 9. Subtle specular highlight (barely visible)
+                    drawPath(
+                        path = chartPath,
+                        color = Color.White.copy(alpha = 0.08f),
+                        style = Stroke(width = 0.8.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    )
 
-                val peakX = size.width * xPct
-                val peakY = size.height * yPct
-
-                // Outer radial glow (large, soft, dense orange bloom)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Primary.copy(alpha = 0.8f),
-                            Primary.copy(alpha = 0.3f),
-                            Color.Transparent
-                        ),
-                        center = Offset(peakX, peakY),
-                        radius = 80f // Increased bloom
-                    ),
-                    radius = 80f,
-                    center = Offset(peakX, peakY)
-                )
-
-                // Inner bright core dot
-                drawCircle(
-                    color = Color.White,
-                    radius = 4f, // Slightly larger
-                    center = Offset(peakX, peakY)
-                )
+                    // 10. Cinematic grain overlay
+                    if (noiseBrush != null) {
+                        drawRect(brush = noiseBrush)
+                    }
+                }
             }
-        }
-    }
+    )
 }
 
 // ── Unit Target Donut ───────────────────────────────────────────

@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import com.statz.app.domain.model.MoneyUtils
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.background
@@ -134,70 +135,61 @@ fun SalesDashboardScreen(
                 }
             }
 
-            // Total Revenue KPI with Wave Chart
             val noiseBitmap = rememberNoiseBitmap()
 
+            // Total Revenue KPI with GlowLineChart wrapped in StatzGlassCard
             com.statz.app.ui.components.StatzGlassCard(
-                modifier = Modifier.fillMaxWidth().height(200.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
                 shape = RoundedCornerShape(20.dp),
-                tintColor = Color(0xFF2A2A2A)
+                tintColor = Color(0xFF060606)
             ) {
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .noiseOverlay(noiseBitmap)
-                ) {
-                    // Revenue wave chart placed at the bottom natively
-                    if (state.dailyRevenueHistory.size >= 2) {
-                        com.statz.app.ui.components.RevenueWaveChart(
-                            values = state.dailyRevenueHistory,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight()
-                                .padding(top = 110.dp)
-                                .align(Alignment.BottomCenter)
-                        )
-                    }
+                if (state.dailyRevenueHistory.size >= 2) {
+                    com.statz.app.ui.components.GlowLineChart(
+                        values = state.dailyRevenueHistory,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.Top
-                    ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    Text(
+                        text = MoneyUtils.centsToDisplay(dashboard.totalRevenue),
+                        style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Monospace),
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Total Revenue",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    val diff = dashboard.totalRevenue - dashboard.previousMonthRevenue
+                    val pct = if (dashboard.previousMonthRevenue > 0) ((diff.toFloat() / dashboard.previousMonthRevenue) * 100) else if (dashboard.totalRevenue > 0) 100f else 0f
+                    val isPositive = diff >= 0
+                    val pctStr = (if (isPositive) "+" else "") + "%.0f%%".format(pct)
+                    val trendColor = if (isPositive) com.statz.app.ui.theme.Success else com.statz.app.ui.theme.Error
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = MoneyUtils.centsToDisplay(dashboard.totalRevenue),
-                            style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace),
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            text = pctStr,
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                            color = trendColor,
+                            fontWeight = FontWeight.Bold
                         )
-                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = "Total Revenue",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.6f)
+                            text = " vs last month",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.5f)
                         )
-                        Spacer(Modifier.height(4.dp))
-                        
-                        val diff = dashboard.totalRevenue - dashboard.previousMonthRevenue
-                        val pct = if (dashboard.previousMonthRevenue > 0) ((diff.toFloat() / dashboard.previousMonthRevenue) * 100) else if (dashboard.totalRevenue > 0) 100f else 0f
-                        val isPositive = diff >= 0
-                        val diffStr = MoneyUtils.centsToDisplay(kotlin.math.abs(diff))
-                        val pctStr = (if (isPositive) "+" else "") + "%.1f%%".format(pct)
-                        val trendColor = if (isPositive) com.statz.app.ui.theme.Success else com.statz.app.ui.theme.Error
-                        
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = pctStr,
-                                style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace),
-                                color = trendColor,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = " | $diffStr vs Last Month",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color.White.copy(alpha = 0.5f)
-                            )
-                        }
                     }
                 }
             }
